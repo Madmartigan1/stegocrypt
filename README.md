@@ -12,6 +12,6 @@ Hide encrypted messages or files inside images/videos with password-protected, p
 #One time only:
 python -m pip install requirements.txt
 
-#Run from CLI
+#From src foulder, run in CLI
 python main.py
 ```
