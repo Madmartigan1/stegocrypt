@@ -7,5 +7,11 @@ Hide encrypted messages or files inside images/videos with password-protected, p
 
 ➡️ **[Get the latest StegoCrypt installer (Windows)](../../releases/latest)**
 
-## Run from source (Windows)
+## Run from source (platform independent)
+```
+#One time only:
+requirements.txt
 
+#Run from CLI
+python main.py
+```
