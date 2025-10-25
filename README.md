@@ -3,6 +3,10 @@
 Hide encrypted messages or files inside images/videos with password-protected, pixel-level steganography.  
 ✅ GUI app for Windows • Optional CLI • Lossless output for reliable extraction.
 
+[![Download](https://img.shields.io/github/v/release/Madmartigan1/stegocrypt?label=Download%20Installer)](../../releases/latest)
+
+---
+
 ## Download
 
 ➡️ **[Get the latest StegoCrypt installer (Windows)](../../releases/latest)**
