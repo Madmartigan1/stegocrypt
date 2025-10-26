@@ -19,6 +19,7 @@ However, if the adversary suspects steganography and runs tools like StegExpose 
 
 ---
 
+
 ## Prerequisite
 Install FFMPEG:
 ```
@@ -33,6 +34,7 @@ choco install ffmpeg
 ```
 
 ---
+
 
 ## Run from source (Windows/macOS/Linux)
 
@@ -51,6 +53,7 @@ pip install -r requirements.txt
 # Run in CLI (will start up GUI interface)
 python main.py
 ```
+
 
 If you prefer to run directly in CLI, here are some examples:
 ```
