@@ -19,6 +19,21 @@ However, if the adversary suspects steganography and runs tools like StegExpose 
 
 ---
 
+## Prerequisite
+Install FFMPEG:
+```
+#Linux (Debian/Ubuntu)
+sudo apt install ffmpeg
+
+#macOS (using Homebrew)
+brew install ffmpeg
+
+#Windows (using Chocolatey)
+choco install ffmpeg
+```
+
+---
+
 ## Run from source (Windows/macOS/Linux)
 
 ```bash
