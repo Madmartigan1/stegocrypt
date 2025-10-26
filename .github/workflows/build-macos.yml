@@ -3,7 +3,7 @@ name: macOS Build & Release
 on:
   push:
     tags:
-      - "v*.*.*"   # push a tag like v1.0.1 to trigger
+      - "v*.*.*"
 
 jobs:
   build:
@@ -18,8 +18,26 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r docs/requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller pillow
           brew install create-dmg
+
+      - name: Ensure .icns exists (auto-generate if missing)
+        run: |
+          if [ ! -f assets/stegocrypt.icns ]; then
+            python - <<'PY'
+from PIL import Image
+import os
+src_candidates = ["assets/stegocrypt.png", "assets/icon.png"]
+src = next((p for p in src_candidates if os.path.isfile(p)), None)
+if not src:
+    raise SystemExit("No PNG icon found (assets/stegocrypt.png or assets/icon.png). Add one or commit assets/stegocrypt.icns.")
+im = Image.open(src).convert("RGBA")
+os.makedirs("assets", exist_ok=True)
+im.save("assets/stegocrypt.icns")
+print("Wrote assets/stegocrypt.icns")
+PY
+          fi
+          ls -la assets
 
       - name: Build .app (PyInstaller)
         run: |
