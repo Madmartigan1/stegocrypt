@@ -1,0 +1,43 @@
+name: macOS Build & Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"   # push a tag like v1.0.1 to trigger
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+          pip install pyinstaller
+          brew install create-dmg
+
+      - name: Build .app (PyInstaller)
+        run: |
+          pyinstaller --windowed --name "StegoCrypt" --icon assets/stegocrypt.icns main.py
+          ls -la dist
+
+      - name: Create DMG
+        run: |
+          create-dmg \
+            --volname "StegoCrypt" \
+            --window-pos 200 120 --window-size 600 400 \
+            --icon-size 100 --app-drop-link 425 120 \
+            "dist/StegoCrypt-Setup.dmg" "dist/StegoCrypt.app"
+          ls -la dist
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/StegoCrypt-Setup.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
