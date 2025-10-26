@@ -1,23 +1,51 @@
 name: macOS Build & Release
 
 on:
+  workflow_dispatch:        # allow manual runs from the Actions tab
   push:
-    tags: ["v*.*.*"]
+    tags: ["v*.*.*"]        # runs on tag push like v1.0.2
 
 jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show tree (top)
+        run: |
+          pwd
+          ls -la
+          echo "---- docs ----"
+          ls -la docs || true
+          echo "---- assets ----"
+          ls -la assets || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install deps
+      - name: Python info
+        run: |
+          which python3 || true
+          python3 --version
+          python -m pip --version
+
+      - name: Install deps (pip)
         run: |
           python -m pip install --upgrade pip
-          pip install -r docs/requirements.txt
-          pip install pyinstaller pillow
+          # Fail fast if requirements.txt missing; print a clear message otherwise
+          test -f docs/requirements.txt || (echo "Missing docs/requirements.txt"; exit 1)
+          python -m pip install -r docs/requirements.txt
+          python -m pip install pyinstaller pillow
+
+      - name: Install create-dmg (no auto-update)
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          brew --version
           brew install create-dmg
 
       - name: Prepare icon (.icns) or skip
@@ -26,41 +54,46 @@ jobs:
           set -e
           ICON_FLAG=""
           if [ -f assets/stegocrypt.icns ]; then
-            echo "ICNS exists."
+            echo "Using existing ICNS."
             ICON_FLAG="--icon assets/stegocrypt.icns"
           elif [ -f assets/stegocrypt.png ] || [ -f assets/icon.png ]; then
             python - <<'PY'
 from PIL import Image, UnidentifiedImageError
 import os
 src = "assets/stegocrypt.png" if os.path.isfile("assets/stegocrypt.png") else "assets/icon.png"
-try:
-    im = Image.open(src).convert("RGBA")
-    im.save("assets/stegocrypt.icns")
-    print("Wrote assets/stegocrypt.icns")
-except UnidentifiedImageError as e:
-    raise SystemExit(f"Icon conversion failed: {e}")
+im = Image.open(src).convert("RGBA")
+os.makedirs("assets", exist_ok=True)
+im.save("assets/stegocrypt.icns")
+print("Wrote assets/stegocrypt.icns")
 PY
             ICON_FLAG="--icon assets/stegocrypt.icns"
           elif [ -f assets/stegocrypt.ico ]; then
             python - <<'PY'
 from PIL import Image
+import os
 im = Image.open("assets/stegocrypt.ico")
+os.makedirs("assets", exist_ok=True)
 im.save("assets/stegocrypt.icns")
 print("Converted ICO -> ICNS")
 PY
             ICON_FLAG="--icon assets/stegocrypt.icns"
           else
-            echo "No icon found; building without --icon"
+            echo "No icon found; proceeding without --icon"
           fi
           echo "icon_flag=$ICON_FLAG" >> $GITHUB_OUTPUT
+          ls -la assets || true
 
       - name: Build .app (PyInstaller)
         run: |
+          set -e
           pyinstaller --windowed --name "StegoCrypt" ${{ steps.icon.outputs.icon_flag }} main.py
+          echo "---- dist ----"
           ls -la dist
 
       - name: Create DMG
         run: |
+          set -e
+          test -d "dist/StegoCrypt.app" || (echo "No .app found in dist"; exit 1)
           create-dmg \
             --volname "StegoCrypt" \
             --window-pos 200 120 --window-size 600 400 \
@@ -68,9 +101,23 @@ PY
             "dist/StegoCrypt-Setup.dmg" "dist/StegoCrypt.app"
           ls -la dist
 
-      - name: Upload to Release
+      - name: Upload to Release (DMG)
+        if: success()
         uses: softprops/action-gh-release@v2
         with:
           files: dist/StegoCrypt-Setup.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build-artifacts
+          path: |
+            dist/**
+            build/**
+            *.spec
+            assets/stegocrypt.icns
+            **/*.log
+          if-no-files-found: warn
