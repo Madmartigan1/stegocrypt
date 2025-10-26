@@ -2,8 +2,7 @@ name: macOS Build & Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    tags: ["v*.*.*"]
 
 jobs:
   build:
@@ -21,27 +20,43 @@ jobs:
           pip install pyinstaller pillow
           brew install create-dmg
 
-      - name: Ensure .icns exists (auto-generate if missing)
+      - name: Prepare icon (.icns) or skip
+        id: icon
         run: |
-          if [ ! -f assets/stegocrypt.icns ]; then
+          set -e
+          ICON_FLAG=""
+          if [ -f assets/stegocrypt.icns ]; then
+            echo "ICNS exists."
+            ICON_FLAG="--icon assets/stegocrypt.icns"
+          elif [ -f assets/stegocrypt.png ] || [ -f assets/icon.png ]; then
+            python - <<'PY'
+from PIL import Image, UnidentifiedImageError
+import os
+src = "assets/stegocrypt.png" if os.path.isfile("assets/stegocrypt.png") else "assets/icon.png"
+try:
+    im = Image.open(src).convert("RGBA")
+    im.save("assets/stegocrypt.icns")
+    print("Wrote assets/stegocrypt.icns")
+except UnidentifiedImageError as e:
+    raise SystemExit(f"Icon conversion failed: {e}")
+PY
+            ICON_FLAG="--icon assets/stegocrypt.icns"
+          elif [ -f assets/stegocrypt.ico ]; then
             python - <<'PY'
 from PIL import Image
-import os
-src_candidates = ["assets/stegocrypt.png", "assets/icon.png"]
-src = next((p for p in src_candidates if os.path.isfile(p)), None)
-if not src:
-    raise SystemExit("No PNG icon found (assets/stegocrypt.png or assets/icon.png). Add one or commit assets/stegocrypt.icns.")
-im = Image.open(src).convert("RGBA")
-os.makedirs("assets", exist_ok=True)
+im = Image.open("assets/stegocrypt.ico")
 im.save("assets/stegocrypt.icns")
-print("Wrote assets/stegocrypt.icns")
+print("Converted ICO -> ICNS")
 PY
+            ICON_FLAG="--icon assets/stegocrypt.icns"
+          else
+            echo "No icon found; building without --icon"
           fi
-          ls -la assets
+          echo "icon_flag=$ICON_FLAG" >> $GITHUB_OUTPUT
 
       - name: Build .app (PyInstaller)
         run: |
-          pyinstaller --windowed --name "StegoCrypt" --icon assets/stegocrypt.icns main.py
+          pyinstaller --windowed --name "StegoCrypt" ${{ steps.icon.outputs.icon_flag }} main.py
           ls -la dist
 
       - name: Create DMG
