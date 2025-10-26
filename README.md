@@ -4,7 +4,7 @@ Steganography hides the existence of data; encryption protects the content. Hide
 
 ✅ GUI app for Windows • Optional CLI • Lossless output for reliable extraction.
 
-[![Download](https://img.shields.io/github/v/release/Madmartigan1/stegocrypt?label=Download%20Installer)](../../releases/latest)
+[![Download](https://img.shields.io/github/v/tag/Madmartigan1/stegocrypt?label=Download%20Installer)](../../releases/latest)
   
 ---
 
