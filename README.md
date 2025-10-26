@@ -50,6 +50,6 @@ python stego_cli.py extract -i cover_stego.png -p "secret"
 
 **Documenation**
 - For more info on CLI usage, please refer to the manual at [/docs/CLIOpsManual.pdf](/docs/CLIOpsManual.pdf)
-- For information on mathematical detail behing this project, please see [docs/MathematicalDescription.pdf](docs/MathematicalDescription.pdf)
+- For information on mathematical detail behind this project, please see [docs/MathematicalDescription.pdf](docs/MathematicalDescription.pdf)
 
 ---
