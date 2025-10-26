@@ -46,4 +46,10 @@ python stego_cli.py embed -i cover.png -o cover_stego.png -p "secret" -m "Hello"
 python stego_cli.py extract -i cover_stego.png -p "secret"
 ```
 
-For more info on CLI usage, please refer to the manual at [/docs/CLIOpsManual.pdf](/docs/CLIOpsManual.pdf)
+---
+
+**Documenation**
+- For more info on CLI usage, please refer to the manual at [/docs/CLIOpsManual.pdf](/docs/CLIOpsManual.pdf)
+- For information on mathematical detail behing this project, please see [docs/MathematicalDescription.pdf](docs/MathematicalDescription.pdf)
+
+---
