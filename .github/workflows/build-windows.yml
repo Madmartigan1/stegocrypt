@@ -1,0 +1,45 @@
+name: Windows Build & Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        shell: powershell
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+          pip install pyinstaller
+
+      - name: Build EXE (PyInstaller)
+        shell: powershell
+        run: |
+          pyinstaller --noconfirm --name "StegoCrypt" --windowed --icon assets\stegocrypt.ico main.py
+          Get-ChildItem dist\StegoCrypt
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --yes
+
+      - name: Build installer (Inno Setup)
+        shell: powershell
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\StegoCrypt.iss
+          Get-ChildItem installer\Output
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/Output/StegoCrypt-Setup-*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
