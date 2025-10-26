@@ -7,18 +7,17 @@ Steganography hides the existence of data; encryption protects the content. Hide
 [![Download](https://img.shields.io/github/v/release/Madmartigan1/stegocrypt?label=Download%20Installer)](../../releases/latest)
   
 ---
+
 **Note on security**: Even if you use a weak password such as "hello", an attacker who doesn’t know there’s anything hidden may not look for it. That’s the beauty of steganography — security through obscurity at the visual/statistical level.
-However, if the adversary suspects steganography and runs tools like StegExpose or Chi-square tests, weakly protected data can be detected, even if not decrypted.
-
-Once detected, brute-forcing a weak password becomes trivial.
----
-
+However, if the adversary suspects steganography and runs tools like StegExpose or Chi-square tests, weakly protected data can be detected, even if not decrypted. Once detected, brute-forcing a weak password becomes trivial.
 
 ---
 
 ## Download
 
 ➡️ **[Get the latest StegoCrypt installer (Windows)](../../releases/latest)**
+
+---
 
 ## Run from source (Windows/macOS/Linux)
 
