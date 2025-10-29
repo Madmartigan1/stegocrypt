@@ -1,0 +1,116 @@
+name: Linux Build & Release (AppImage)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Show tree
+        run: |
+          pwd
+          ls -la
+          echo "---- docs ----"; ls -la docs || true
+          echo "---- assets ----"; ls -la assets || true
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libglib2.0-0 zsync
+
+      - name: Install pip deps
+        run: |
+          python -m pip install --upgrade pip
+          test -f docs/requirements.txt || (echo "Missing docs/requirements.txt"; exit 1)
+          python -m pip install -r docs/requirements.txt
+          python -m pip install pyinstaller appimage-builder
+
+      - name: Build (PyInstaller one-dir)
+        run: |
+          pyinstaller --clean --noconfirm --windowed --name "StegoCrypt" \
+            --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL \
+            main.py
+          ls -la dist/StegoCrypt
+
+      - name: Create AppDir structure
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          cp -r dist/StegoCrypt/* AppDir/usr/bin/
+          # desktop file
+          cat > AppDir/usr/share/applications/stegocrypt.desktop <<'EOF'
+          [Desktop Entry]
+          Name=StegoCrypt
+          Exec=StegoCrypt
+          Icon=stegocrypt
+          Type=Application
+          Categories=Utility;
+          EOF
+          # icon (fallback to a PNG in assets or generate a tiny one)
+          if [ -f assets/stegocrypt.png ]; then
+            cp assets/stegocrypt.png AppDir/usr/share/icons/hicolor/256x256/apps/stegocrypt.png
+          else
+            python - <<'PY'
+from PIL import Image, ImageDraw
+import os
+os.makedirs("AppDir/usr/share/icons/hicolor/256x256/apps", exist_ok=True)
+im = Image.new("RGBA", (256,256), (30,30,36,255))
+d = ImageDraw.Draw(im)
+d.rectangle((48,64,208,208), radius=24, fill=(0,120,215,255))
+im.save("AppDir/usr/share/icons/hicolor/256x256/apps/stegocrypt.png")
+print("Generated placeholder icon")
+PY
+          fi
+
+      - name: Build AppImage
+        run: |
+          # recipe for appimage-builder (minimal)
+          cat > AppImageBuilder.yml <<'YAML'
+          version: 1
+          AppDir:
+            path: ./AppDir
+            app_info:
+              id: stegocrypt
+              name: StegoCrypt
+              icon: stegocrypt
+              exec: usr/bin/StegoCrypt
+              version: 1.0.0
+            runtime:
+              env:
+                APPDIR_LIBRARY_PATH: $APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu
+          AppImage:
+            arch: x86_64
+          YAML
+          appimage-builder --recipe AppImageBuilder.yml --skip-tests
+          ls -la *.AppImage
+
+      - name: Upload to Release (AppImage)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./*.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build-artifacts
+          path: |
+            dist/**
+            build/**
+            *.spec
+            *.AppImage
+          if-no-files-found: warn
