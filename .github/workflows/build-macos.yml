@@ -1,21 +1,51 @@
 name: macOS Build & Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag to upload asset to (e.g., v1.0.2). Leave empty to skip upload.'
+        required: false
+        default: ''
   push:
-    tags: ["v*.*.*"]
+    tags: ['v*.*.*']
 
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple Silicon
+          - runner: macos-14
+            arch: arm64
+            dmg_suffix: arm64
+          # Intel
+          - runner: macos-13
+            arch: x86_64
+            dmg_suffix: x86_64
+
+    runs-on: ${{ matrix.runner }}
+
+    env:
+      # Lower this if you need even older macOS, but many wheels target 10.15+.
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      - name: Show env
+        run: |
+          sw_vers
+          uname -a
+          python --version
 
       - name: Install deps
         env:
@@ -32,15 +62,51 @@ jobs:
         run: |
           ICON_FLAG=""
           if [ -f assets/stegocrypt.icns ]; then ICON_FLAG="--icon assets/stegocrypt.icns"; fi
-
+          # Build native for this runner (arm64 on macos-14, x86_64 on macos-13)
+          python -m PyInstaller --clean --windowed --name "StegoCrypt" ${ICON_FLAG} \
+            --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL \
+            main.py
           ls -la dist || true
+          # Quick sanity: show app arch
+          file "dist/StegoCrypt.app/Contents/MacOS/StegoCrypt" || true
 
       - name: Create DMG
         run: |
           test -d "dist/StegoCrypt.app" || (echo "No .app found"; exit 1)
+          create-dmg \
+            --volname "StegoCrypt" \
+            --window-pos 200 120 --window-size 600 400 \
+            --icon-size 100 --app-drop-link 425 120 \
+            "dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg" "dist/StegoCrypt.app"
+          ls -la dist || true
 
+      # Upload for tag push
+      - name: Upload to Release (DMG, tag push)
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/StegoCrypt-Setup.dmg
+          files: dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Upload for manual run with input tag
+      - name: Upload to Release (DMG, manual with input tag)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          files: dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Always keep artifacts for debugging
+      - name: Upload artifacts (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}-artifacts
+          path: |
+            dist/**
+            build/**
+            *.spec
+          if-no-files-found: warn
