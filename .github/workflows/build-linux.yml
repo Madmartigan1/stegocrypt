@@ -62,11 +62,13 @@ jobs:
           ls -la *.AppImage
 
       - name: Upload to Release (AppImage)
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: ./*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Upload artifacts (debug)
         if: always()
