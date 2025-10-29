@@ -35,10 +35,9 @@ jobs:
       - name: Build EXE (PyInstaller)
         shell: powershell
         run: |
-          $icon = (Test-Path assets\stegocrypt.ico) ? '--icon assets\stegocrypt.ico' : ''
-          pyinstaller --clean --noconfirm --windowed --name "StegoCrypt" $icon `
-            --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL `
-            main.py
+          $icon = ""
+          if (Test-Path "assets\stegocrypt.ico") { $icon = "--icon assets\stegocrypt.ico" }
+          pyinstaller --clean --noconfirm --windowed --name "StegoCrypt" $icon --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL main.py
           Get-ChildItem dist\StegoCrypt -Force
 
       - name: Install Inno Setup
