@@ -1,7 +1,7 @@
 name: macOS Build & Release
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:       # ← this enables the “Run workflow” button
   push:
     tags: ["v*.*.*"]
 
@@ -16,13 +16,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Show tree
-        run: |
-          pwd
-          ls -la
-          echo "---- docs ----"; ls -la docs || true
-          echo "---- assets ----"; ls -la assets || true
 
       - name: Install deps
         env:
@@ -39,14 +32,17 @@ jobs:
         run: |
           ICON_FLAG=""
           if [ -f assets/stegocrypt.icns ]; then ICON_FLAG="--icon assets/stegocrypt.icns"; fi
-          pyinstaller --clean --windowed --name "StegoCrypt" ${ICON_FLAG} --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL main.py
+          pyinstaller --clean --windowed --name "StegoCrypt" ${ICON_FLAG} \
+            --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL \
+            main.py
           ls -la dist || true
 
       - name: Create DMG
         run: |
           test -d "dist/StegoCrypt.app" || (echo "No .app found"; exit 1)
-          create-dmg --volname "StegoCrypt" --window-pos 200 120 --window-size 600 400 --icon-size 100 --app-drop-link 425 120 "dist/StegoCrypt-Setup.dmg" "dist/StegoCrypt.app"
-          ls -la dist || true
+          create-dmg --volname "StegoCrypt" --window-pos 200 120 --window-size 600 400 \
+            --icon-size 100 --app-drop-link 425 120 \
+            "dist/StegoCrypt-Setup.dmg" "dist/StegoCrypt.app"
 
       - name: Upload to Release (DMG)
         if: startsWith(github.ref, 'refs/tags/')
@@ -55,7 +51,6 @@ jobs:
           files: dist/StegoCrypt-Setup.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 
       - name: Upload artifacts (debug)
         if: always()
