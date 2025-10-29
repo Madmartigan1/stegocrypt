@@ -32,57 +32,20 @@ jobs:
           python -m pip install --upgrade pip
           test -f docs/requirements.txt || (echo "Missing docs/requirements.txt"; exit 1)
           python -m pip install -r docs/requirements.txt
-          python -m pip install pyinstaller pillow
+          python -m pip install pyinstaller
           brew install create-dmg
-
-      - name: Prepare icon (.icns) or skip
-        id: icon
-        run: |
-          set -e
-          ICON_FLAG=""
-          if [ -f assets/stegocrypt.icns ]; then
-            ICON_FLAG="--icon assets/stegocrypt.icns"
-          elif [ -f assets/stegocrypt.png ] || [ -f assets/icon.png ]; then
-            python - <<'PY'
-from PIL import Image
-import os
-src = "assets/stegocrypt.png" if os.path.isfile("assets/stegocrypt.png") else "assets/icon.png"
-im = Image.open(src).convert("RGBA")
-os.makedirs("assets", exist_ok=True)
-im.save("assets/stegocrypt.icns")
-print("Wrote assets/stegocrypt.icns")
-PY
-            ICON_FLAG="--icon assets/stegocrypt.icns"
-          elif [ -f assets/stegocrypt.ico ]; then
-            python - <<'PY'
-from PIL import Image
-import os
-im = Image.open("assets/stegocrypt.ico")
-os.makedirs("assets", exist_ok=True)
-im.save("assets/stegocrypt.icns")
-print("Converted ICO -> ICNS")
-PY
-            ICON_FLAG="--icon assets/stegocrypt.icns"
-          else
-            echo "No icon found; building without --icon"
-          fi
-          echo "icon_flag=$ICON_FLAG" >> $GITHUB_OUTPUT
 
       - name: Build .app (PyInstaller)
         run: |
-          pyinstaller --clean --windowed --name "StegoCrypt" ${{ steps.icon.outputs.icon_flag }} \
-            --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL \
-            main.py
+          ICON_FLAG=""
+          if [ -f assets/stegocrypt.icns ]; then ICON_FLAG="--icon assets/stegocrypt.icns"; fi
+          pyinstaller --clean --windowed --name "StegoCrypt" ${ICON_FLAG} --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL main.py
           ls -la dist || true
 
       - name: Create DMG
         run: |
           test -d "dist/StegoCrypt.app" || (echo "No .app found"; exit 1)
-          create-dmg \
-            --volname "StegoCrypt" \
-            --window-pos 200 120 --window-size 600 400 \
-            --icon-size 100 --app-drop-link 425 120 \
-            "dist/StegoCrypt-Setup.dmg" "dist/StegoCrypt.app"
+          create-dmg --volname "StegoCrypt" --window-pos 200 120 --window-size 600 400 --icon-size 100 --app-drop-link 425 120 "dist/StegoCrypt-Setup.dmg" "dist/StegoCrypt.app"
           ls -la dist || true
 
       - name: Upload to Release (DMG)
