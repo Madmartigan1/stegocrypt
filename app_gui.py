@@ -6,6 +6,9 @@ from payload_format import build_payload
 from stego_image import embed_image, extract_image
 from stego_video import embed_video_streaming, extract_video_streaming
 
+import sys, platform
+import tkinter.font as tkfont
+
 def human_status(done, total):
     p = 0 if total==0 else int((done/total)*100)
     return f"{p}%"
@@ -30,10 +33,60 @@ class App:
         self.rs_nsym   = IntVar(value=32)
         self.codec_sel = StringVar(value="h264rgb")  # 'h264rgb' or 'ffv1'
         self.status    = StringVar(value="Ready")
+        self._polish_platform()
         self._build()
         self._update_mode_fields()  # set initial state
-        self._update_mode_fields()   # set initial state
         self._apply_mode_band()      # set initial band color
+
+    def _polish_platform(self):
+        """Light platform-specific cosmetics, especially for macOS."""
+        # HiDPI scaling
+        try:
+            if sys.platform == "darwin":
+                # Slightly larger scaling looks better on Retina
+                self.root.tk.call("tk", "scaling", 1.2)
+                # Prefer unified titlebar for a native feel (best-effort)
+                try:
+                    self.root.tk.call("::tk::unsupported::MacWindowStyle", "style",
+                                      self.root._w, "unified", "document")
+                except Exception:
+                    pass
+                # Use system font if available (falls back silently)
+                for f in ("TkDefaultFont","TkTextFont","TkMenuFont","TkHeadingFont"):
+                    try:
+                        ff = tkfont.nametofont(f)
+                        ff.configure(family="SF Pro Text", size=13)
+                    except Exception:
+                        pass
+            else:
+                # Slight overall bump on Win/Linux
+                self.root.tk.call("tk", "scaling", 1.1)
+        except Exception:
+            pass
+
+        # ttk theme & padding
+        try:
+            style = ttk.Style(self.root)
+            if sys.platform == "darwin":
+                try:
+                    style.theme_use("aqua")     # native macOS look
+                except Exception:
+                    style.theme_use("clam")
+            else:
+                try:
+                    style.theme_use("vista")    # Windows; on Linux this may no-op
+                except Exception:
+                    style.theme_use("clam")
+
+            pad = 6 if sys.platform == "darwin" else 4
+            style.configure("TLabel", padding=pad)
+            style.configure("TButton", padding=(10,6))
+            style.configure("TEntry", padding=4)
+            style.configure("TCheckbutton", padding=pad)
+            style.configure("TRadiobutton", padding=pad)
+            style.configure("Horizontal.TProgressbar", thickness=14)
+        except Exception:
+            pass
 
     def _setup_styles(self):
         """Pick a sane ttk theme and set gentle, consistent UI styling."""
