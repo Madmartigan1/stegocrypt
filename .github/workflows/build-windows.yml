@@ -19,40 +19,10 @@ jobs:
 
       - name: Show tree
         shell: powershell
-        run: |
-          Get-ChildItem -Force
-          if (Test-Path docs) { Get-ChildItem docs -Force }
-          if (Test-Path assets) { Get-ChildItem assets -Force }
-
-      - name: Install deps
-        shell: powershell
-        run: |
-          python -m pip install --upgrade pip
-          if (!(Test-Path docs\requirements.txt)) { throw "Missing docs\requirements.txt" }
-          pip install -r docs\requirements.txt
-          pip install pyinstaller
 
       - name: Build EXE (PyInstaller)
         shell: powershell
         run: |
-          $args = @(
-            '-m','PyInstaller',
-            '--clean','--noconfirm','--windowed',
-            '--name','StegoCrypt',
-            '--collect-submodules=cv2',
-            '--collect-submodules=Crypto',
-            '--collect-all=PIL'
-          )
-
-          if (Test-Path 'assets\stegocrypt.ico') {
-            $args += @('--icon','assets\stegocrypt.ico')
-          }
-
-          $args += @('main.py')
-
-          # Invoke: python -m PyInstaller <args...>
-          & python $args
-          if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE" }
 
           Get-ChildItem dist\StegoCrypt -Force
 
@@ -70,7 +40,7 @@ jobs:
           Get-ChildItem installer\Output -Force
 
       - name: Upload to Release (EXE)
-        if: startsWith(github.ref, 'refs/tags/')
+
         uses: softprops/action-gh-release@v2
         with:
           files: installer/Output/StegoCrypt-Setup-*.exe
