@@ -70,14 +70,34 @@ jobs:
           # Quick sanity: show app arch
           file "dist/StegoCrypt.app/Contents/MacOS/StegoCrypt" || true
 
+      - name: Clean previous DMG & detach stale volumes
+        run: |
+          set -eux
+          # Detach any previously mounted volumes that could conflict
+          for v in "/Volumes/StegoCrypt" "/Volumes/StegoCrypt-${{ matrix.dmg_suffix }}" "/Volumes/StegoCrypt-${{ github.run_id }}" ; do
+            if [ -d "$v" ]; then
+              hdiutil detach "$v" || hdiutil detach -force "$v" || true
+            fi
+          done
+          # Remove any existing DMG outputs
+          rm -f dist/StegoCrypt-Setup*.dmg
+
       - name: Create DMG
         run: |
           test -d "dist/StegoCrypt.app" || (echo "No .app found"; exit 1)
-          create-dmg \
-            --volname "StegoCrypt" \
+          VOL="StegoCrypt-${{ matrix.dmg_suffix }}-${{ github.run_id }}"
+          OUT="dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg"
+          # Retry a couple times in case Spotlight/indexing briefly locks files
+          n=0
+          until create-dmg --overwrite --no-internet-enable \
+            --volname "$VOL" \
             --window-pos 200 120 --window-size 600 400 \
             --icon-size 100 --app-drop-link 425 120 \
-            "dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg" "dist/StegoCrypt.app"
+            "$OUT" "dist/StegoCrypt.app"
+          do
+            n=$((n+1)); [ $n -ge 3 ] && exit 1
+            sleep 2
+          done
           ls -la dist || true
 
       # Upload for tag push
