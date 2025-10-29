@@ -49,11 +49,13 @@ jobs:
           ls -la dist || true
 
       - name: Upload to Release (DMG)
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/StegoCrypt-Setup.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Upload artifacts (debug)
         if: always()
