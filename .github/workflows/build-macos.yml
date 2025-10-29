@@ -82,22 +82,46 @@ jobs:
           # Remove any existing DMG outputs
           rm -f dist/StegoCrypt-Setup*.dmg
 
-      - name: Create DMG
+      - name: Create DMG (robust)
         run: |
+          set -eux
           test -d "dist/StegoCrypt.app" || (echo "No .app found"; exit 1)
+
+          echo "::group::Mounted images before"
+          hdiutil info || true
+          echo "::endgroup::"
+
+          # Detach any volumes with our base name that might be lingering
+          for v in /Volumes/StegoCrypt*; do
+            if [ -d "$v" ]; then
+              echo "Detaching stale volume: $v"
+              hdiutil detach "$v" || hdiutil detach -force "$v" || true
+            fi
+          done
+
+          # Clean any previous outputs in case a prior attempt left them
+          rm -f "dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg"
+
           VOL="StegoCrypt-${{ matrix.dmg_suffix }}-${{ github.run_id }}"
           OUT="dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg"
-          # Retry a couple times in case Spotlight/indexing briefly locks files
+
+          # Retry loop to dodge transient Spotlight/Gatekeeper locks
           n=0
           until create-dmg --overwrite --no-internet-enable \
-            --volname "$VOL" \
-            --window-pos 200 120 --window-size 600 400 \
-            --icon-size 100 --app-drop-link 425 120 \
-            "$OUT" "dist/StegoCrypt.app"
+                 --volname "$VOL" \
+                 --window-pos 200 120 --window-size 600 400 \
+                 --icon-size 100 --app-drop-link 425 120 \
+                 "$OUT" "dist/StegoCrypt.app"
           do
             n=$((n+1)); [ $n -ge 3 ] && exit 1
+            echo "create-dmg failed; checking mounts and retrying ($n/3)…"
+            hdiutil info || true
+            for v in /Volumes/StegoCrypt*; do
+              [ -d "$v" ] && hdiutil detach "$v" || true
+            done
             sleep 2
           done
+
           ls -la dist || true
 
       # Upload for tag push
