@@ -35,35 +35,27 @@ jobs:
       - name: Build EXE (PyInstaller)
         shell: powershell
         run: |
-          $common = @(
-            'pyinstaller',
+          $args = @(
+            '-m','PyInstaller',
             '--clean','--noconfirm','--windowed',
             '--name','StegoCrypt',
             '--collect-submodules=cv2',
             '--collect-submodules=Crypto',
-            '--collect-all=PIL',
-            'main.py'
+            '--collect-all=PIL'
           )
 
           if (Test-Path 'assets\stegocrypt.ico') {
-            $cmd = @(
-              'pyinstaller',
-              '--clean','--noconfirm','--windowed',
-              '--name','StegoCrypt',
-              '--icon','assets\stegocrypt.ico',
-              '--collect-submodules=cv2',
-              '--collect-submodules=Crypto',
-              '--collect-all=PIL',
-              'main.py'
-            )
-          } else {
-            $cmd = $common
+            $args += @('--icon','assets\stegocrypt.ico')
           }
 
-          & $cmd
+          $args += @('main.py')
+
+          # Invoke: python -m PyInstaller <args...>
+          & python $args
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE" }
 
           Get-ChildItem dist\StegoCrypt -Force
+
 
 
       - name: Install Inno Setup
