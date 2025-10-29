@@ -1,98 +1,81 @@
-name: Linux Build & Release (AppImage)
+name: Linux Build & Release
 
 on:
-  workflow_dispatch:       # ← this enables the “Run workflow” button
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag to upload asset to (e.g., v1.0.2). Leave empty to skip upload.'
+        required: false
+        default: ''
   push:
-    tags: ["v*.*.*"]
+    tags: ['v*.*.*']
 
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install system deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1 libglib2.0-0 zsync
+          sudo apt-get install -y libgl1 libglib2.0-0
 
       - name: Install pip deps
         run: |
           python -m pip install --upgrade pip
           test -f docs/requirements.txt || (echo "Missing docs/requirements.txt"; exit 1)
           python -m pip install -r docs/requirements.txt
-          python -m pip install pyinstaller appimage-builder
+          python -m pip install pyinstaller
 
       - name: Build (PyInstaller one-dir)
         run: |
-          pyinstaller --clean --noconfirm --windowed --name "StegoCrypt" \
+          python -m PyInstaller --clean --noconfirm --windowed --name StegoCrypt \
             --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL \
             main.py
           ls -la dist/StegoCrypt
 
-      - name: Create AppDir & recipe
+      - name: Package tarball
         run: |
-          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
-          cp -r dist/StegoCrypt/* AppDir/usr/bin/
-          printf "[Desktop Entry]\nName=StegoCrypt\nExec=StegoCrypt\nIcon=stegocrypt\nType=Application\nCategories=Utility;\n" > AppDir/usr/share/applications/stegocrypt.desktop
-          if [ -f assets/stegocrypt.png ]; then
-            cp assets/stegocrypt.png AppDir/usr/share/icons/hicolor/256x256/apps/stegocrypt.png
-          else
-            python - <<'PY'
-from PIL import Image, ImageDraw
-import os
-os.makedirs('AppDir/usr/share/icons/hicolor/256x256/apps', exist_ok=True)
-im = Image.new('RGBA',(256,256),(30,30,36,255))
-d = ImageDraw.Draw(im); d.rectangle((48,64,208,208), fill=(0,120,215,255))
-im.save('AppDir/usr/share/icons/hicolor/256x256/apps/stegocrypt.png')
-print("Generated placeholder icon")
-PY
-          fi
-          cat > AppImageBuilder.yml <<'YAML'
-version: 1
-AppDir:
-  path: ./AppDir
-  app_info:
-    id: stegocrypt
-    name: StegoCrypt
-    icon: stegocrypt
-    exec: usr/bin/StegoCrypt
-    version: 1.0.0
-  runtime:
-    env:
-      APPDIR_LIBRARY_PATH: $APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu
-AppImage:
-  arch: x86_64
-YAML
-          cat AppImageBuilder.yml
+          tar -C dist -czf StegoCrypt-linux.tar.gz StegoCrypt
+          ls -la StegoCrypt-linux.tar.gz
 
-      - name: Build AppImage
-        run: |
-          appimage-builder --recipe AppImageBuilder.yml --skip-tests
-          ls -la *.AppImage
-
-      - name: Upload to Release (AppImage)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ./*.AppImage
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload artifacts (debug)
+      # Upload to the current run's artifacts (always available for manual download)
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: linux-build-artifacts
           path: |
+            StegoCrypt-linux.tar.gz
             dist/**
             build/**
             *.spec
-            *.AppImage
           if-no-files-found: warn
+
+      # Upload to GitHub Release when run manually with an input tag
+      - name: Upload to Release (manual with input tag)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          files: StegoCrypt-linux.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload to GitHub Release when triggered by a tag push
+      - name: Upload to Release (tag push)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: StegoCrypt-linux.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
