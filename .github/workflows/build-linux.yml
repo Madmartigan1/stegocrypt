@@ -1,7 +1,7 @@
 name: Linux Build & Release (AppImage)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:       # ← this enables the “Run workflow” button
   push:
     tags: ["v*.*.*"]
 
@@ -17,13 +17,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Show tree
-        run: |
-          pwd
-          ls -la
-          echo "---- docs ----"; ls -la docs || true
-          echo "---- assets ----"; ls -la assets || true
-
       - name: Install system deps
         run: |
           sudo apt-get update
@@ -38,22 +31,45 @@ jobs:
 
       - name: Build (PyInstaller one-dir)
         run: |
-          pyinstaller --clean --noconfirm --windowed --name "StegoCrypt" --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL main.py
+          pyinstaller --clean --noconfirm --windowed --name "StegoCrypt" \
+            --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL \
+            main.py
           ls -la dist/StegoCrypt
 
-      - name: Create AppDir structure
+      - name: Create AppDir & recipe
         run: |
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/applications
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
           cp -r dist/StegoCrypt/* AppDir/usr/bin/
           printf "[Desktop Entry]\nName=StegoCrypt\nExec=StegoCrypt\nIcon=stegocrypt\nType=Application\nCategories=Utility;\n" > AppDir/usr/share/applications/stegocrypt.desktop
           if [ -f assets/stegocrypt.png ]; then
             cp assets/stegocrypt.png AppDir/usr/share/icons/hicolor/256x256/apps/stegocrypt.png
           else
-            python -c "from PIL import Image,ImageDraw; import os; os.makedirs('AppDir/usr/share/icons/hicolor/256x256/apps',exist_ok=True); im=Image.new('RGBA',(256,256),(30,30,36,255)); d=ImageDraw.Draw(im); d.rectangle((48,64,208,208), fill=(0,120,215,255)); im.save('AppDir/usr/share/icons/hicolor/256x256/apps/stegocrypt.png')"
+            python - <<'PY'
+from PIL import Image, ImageDraw
+import os
+os.makedirs('AppDir/usr/share/icons/hicolor/256x256/apps', exist_ok=True)
+im = Image.new('RGBA',(256,256),(30,30,36,255))
+d = ImageDraw.Draw(im); d.rectangle((48,64,208,208), fill=(0,120,215,255))
+im.save('AppDir/usr/share/icons/hicolor/256x256/apps/stegocrypt.png')
+print("Generated placeholder icon")
+PY
           fi
-          printf "version: 1\nAppDir:\n  path: ./AppDir\n  app_info:\n    id: stegocrypt\n    name: StegoCrypt\n    icon: stegocrypt\n    exec: usr/bin/StegoCrypt\n    version: 1.0.0\n  runtime:\n    env:\n      APPDIR_LIBRARY_PATH: \$APPDIR/usr/lib:\$APPDIR/usr/lib/x86_64-linux-gnu\nAppImage:\n  arch: x86_64\n" > AppImageBuilder.yml
+          cat > AppImageBuilder.yml <<'YAML'
+version: 1
+AppDir:
+  path: ./AppDir
+  app_info:
+    id: stegocrypt
+    name: StegoCrypt
+    icon: stegocrypt
+    exec: usr/bin/StegoCrypt
+    version: 1.0.0
+  runtime:
+    env:
+      APPDIR_LIBRARY_PATH: $APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu
+AppImage:
+  arch: x86_64
+YAML
           cat AppImageBuilder.yml
 
       - name: Build AppImage
@@ -68,7 +84,6 @@ jobs:
           files: ./*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 
       - name: Upload artifacts (debug)
         if: always()
