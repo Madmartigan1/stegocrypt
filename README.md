@@ -15,7 +15,7 @@ However, if the adversary suspects steganography and runs tools like StegExpose 
 
 ## Download
 
-➡️ **[Get the latest StegoCrypt installer (Windows)](../../releases/latest)**
+➡️ **[Get the latest StegoCrypt installer for Windows, MacOS or Linux](../../releases/latest)**
 
 ---
 
