@@ -5,6 +5,9 @@ on:
   push:
     tags: ["v*.*.*"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -32,8 +35,9 @@ jobs:
       - name: Build EXE (PyInstaller)
         shell: powershell
         run: |
-          $iconFlag = (Test-Path assets\stegocrypt.ico) ? '--icon assets\stegocrypt.ico' : ''
-          pyinstaller --noconfirm --name "StegoCrypt" --windowed $iconFlag main.py
+          $icon = ""
+          if (Test-Path "assets\stegocrypt.ico") { $icon = "--icon assets\stegocrypt.ico" }
+          pyinstaller --clean --noconfirm --windowed --name "StegoCrypt" $icon --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL main.py
           Get-ChildItem dist\StegoCrypt -Force
 
       - name: Install Inno Setup
@@ -43,11 +47,11 @@ jobs:
       - name: Build installer (Inno Setup)
         shell: powershell
         run: |
+          if (!(Test-Path installer\StegoCrypt.iss)) { throw "Missing installer\StegoCrypt.iss" }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\StegoCrypt.iss
           Get-ChildItem installer\Output -Force
 
-      - name: Upload to Release
-        if: github.event_name == 'push'
+      - name: Upload to Release (EXE)
         uses: softprops/action-gh-release@v2
         with:
           files: installer/Output/StegoCrypt-Setup-*.exe
