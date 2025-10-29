@@ -23,10 +23,10 @@ jobs:
       - name: Build EXE (PyInstaller)
         shell: powershell
         run: |
-          $icon = ""
-          if (Test-Path "assets\stegocrypt.ico") { $icon = "--icon assets\stegocrypt.ico" }
-          pyinstaller --clean --noconfirm --windowed --name "StegoCrypt" $icon --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL main.py
+
           Get-ChildItem dist\StegoCrypt -Force
+
+
 
       - name: Install Inno Setup
         shell: powershell
@@ -40,11 +40,13 @@ jobs:
           Get-ChildItem installer\Output -Force
 
       - name: Upload to Release (EXE)
+
         uses: softprops/action-gh-release@v2
         with:
           files: installer/Output/StegoCrypt-Setup-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Upload artifacts (debug)
         if: always()
