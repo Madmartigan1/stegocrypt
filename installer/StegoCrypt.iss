@@ -11,7 +11,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputBaseFilename=Windows-StegoCrypt-Setup-{#MyAppVersion}
+OutputBaseFilename=Windows-StegoCrypt-Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -29,5 +29,6 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
 
 
