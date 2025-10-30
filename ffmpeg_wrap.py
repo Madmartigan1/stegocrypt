@@ -20,6 +20,10 @@ class LosslessWriter:
         self.count = 0
         if self.have_ffmpeg:
             self.tmpdir = tempfile.mkdtemp(prefix="stego_png_")
+            # For libx264rgb, MP4 is often incompatible with rgb24. Prefer MKV.
+            if self.codec == "h264rgb" and not self.out_path.lower().endswith((".mkv", ".mka", ".mks")):
+                root, _ext = os.path.splitext(self.out_path)
+                self.out_path = root + ".mkv"
         else:
             fourcc = 0
             self.writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
@@ -45,26 +49,45 @@ class LosslessWriter:
         if self.have_ffmpeg:
             # assemble via ffmpeg using selected codec
             input_pat = os.path.join(self.tmpdir, "frame_%06d.png")
-            if self.codec == "h264rgb":
-                # Lossless RGB H.264 (much smaller than FFV1, preserves exact pixels)
-                cmd = [
-                    "ffmpeg","-y",
-                    "-framerate", str(self.fps),
-                    "-i", input_pat,
-                    "-c:v", "libx264rgb", "-crf", "0", "-preset", "veryslow",
-                    "-pix_fmt", "rgb24",
-                    self.out_path
-                ]
-            else:
-                # default to FFV1 lossless
-                cmd = [
-                    "ffmpeg","-y",
-                    "-framerate", str(self.fps),
-                    "-i", input_pat,
-                    "-c:v", "ffv1", "-level", "3",
-                    self.out_path
-                ]
-            subprocess.run(cmd, check=True)
-            shutil.rmtree(self.tmpdir, ignore_errors=True)
+            try:
+                if self.codec == "h264rgb":
+                    # Strictly lossless RGB H.264 in MKV. Keyframes only (-g 1).
+                    cmd = [
+                        "ffmpeg","-y",
+                        "-framerate", str(self.fps),
+                        "-i", input_pat,
+                        "-c:v", "libx264rgb",
+                        "-crf", "0",
+                        "-preset", "veryslow",
+                        "-pix_fmt", "rgb24",
+                        "-g", "1",
+                        self.out_path
+                    ]
+                else:
+                    # FFV1 lossless (very robust). Keep rgb24, CRC slices, keyframes only.
+                    # MKV is ideal; ffmpeg will pick from extension.
+                    cmd = [
+                        "ffmpeg","-y",
+                        "-framerate", str(self.fps),
+                        "-i", input_pat,
+                        "-c:v", "ffv1",
+                        "-level", "3",
+                        "-pix_fmt", "rgb24",
+                        "-g", "1",
+                        "-slicecrc", "1",
+                        self.out_path
+                    ]
+                subprocess.run(cmd, check=True)
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(
+                    "ffmpeg failed while assembling the video.\n"
+                    f"Command: {' '.join(cmd)}\n"
+                    f"Exit code: {e.returncode}\n"
+                    "Hints:\n"
+                    "  • Ensure ffmpeg supports libx264rgb (for h264rgb) or ffv1 codec.\n"
+                    "  • For h264rgb, use a .mkv output (RGB in .mp4 is often unsupported).\n"
+                ) from e
+            finally:
+                shutil.rmtree(self.tmpdir, ignore_errors=True)
         else:
             self.writer.release()

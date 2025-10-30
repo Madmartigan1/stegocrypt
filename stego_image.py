@@ -48,7 +48,13 @@ def embed_image(in_path, out_path, full_payload: bytes, password: str, lsb: int=
         flat[bidx] = v | ((int(bits[header_slots + salt_slots + i]) & 1) << off)
         if progress and (i % 10000 == 0): progress(i, rem_bits)
 
-    Image.fromarray(flat.reshape(arr.shape), "RGB").save(out_path)
+    # Always save losslessly; if the user picked a non-PNG name, still write PNG to avoid LSB loss.
+    img_out = Image.fromarray(flat.reshape(arr.shape), "RGB")
+    try:
+        img_out.save(out_path, format="PNG")
+    except Exception:
+        # Fallback: append .png if an exotic extension causes PIL confusion
+        img_out.save(out_path + ".png", format="PNG")
 
 def extract_image(in_path, password: str, use_rs=False, rs_nsym=0, lsb: int=1, spread=True, progress=None):
     from crypto_utils import MAGIC
@@ -60,9 +66,26 @@ def extract_image(in_path, password: str, use_rs=False, rs_nsym=0, lsb: int=1, s
     total_slots = flat.size * lsb
 
     header_slots = HEADER_LEN * 8
-    if header_slots > total_slots: raise ValueError("Image too small")
+    if header_slots > total_slots:
+        raise ValueError("Image too small")
 
-    # read header seq
+    # Try LSB in {current,1,2,3}
+    from bit_utils import bits_to_bytes
+    tried = [lsb] + [x for x in (1,2,3) if x != lsb]
+    header = None
+    for test_lsb in tried:
+        hb = []
+        for i in range(header_slots):
+            bidx = i // test_lsb; off = i % test_lsb
+            hb.append((int(flat[bidx]) >> off) & 1)
+        cand = bits_to_bytes(np.array(hb, dtype=np.uint8))
+        if cand[:len(MAGIC)] == MAGIC:
+            header = cand
+            lsb = test_lsb
+            break
+    if header is None:
+        raise ValueError("Magic not found")
+    # Re-read header with the detected LSB (for consistency and clarity)
     hb = []
     for i in range(header_slots):
         bidx = i // lsb; off = i % lsb
@@ -70,6 +93,7 @@ def extract_image(in_path, password: str, use_rs=False, rs_nsym=0, lsb: int=1, s
     header = bits_to_bytes(np.array(hb, dtype=np.uint8))
 
     if header[:len(MAGIC)] != MAGIC: raise ValueError("Magic not found")
+    
     pay_len = struct.unpack(">Q", header[len(MAGIC):len(MAGIC)+8])[0]
     payload_bits_needed = pay_len * 8
 

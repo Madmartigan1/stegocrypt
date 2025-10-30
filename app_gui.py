@@ -16,7 +16,7 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("Stego — Image/Video (PRNG spread, ECC, FFV1)")
-        self.root.geometry("820x560")
+        #self.root.geometry("820x560")
         # Subtle, modern default look (font + theme + paddings)
         self._setup_styles()
         # A thin color band that changes with mode (Embed=blue, Extract=green)
@@ -31,12 +31,13 @@ class App:
         self.use_ecc   = BooleanVar(value=False)
         self.rs_nsym   = IntVar(value=32)
         self.codec_sel = StringVar(value="h264rgb")  # 'h264rgb' or 'ffv1'
-        self.pref_save_text = BooleanVar(value=True) # prefer saving extracted text to file
+        self.pref_save_text = BooleanVar(value=False) # prefer saving extracted text to file
         self.status    = StringVar(value="Ready")
         self._polish_platform()
         self._build()
         self._update_mode_fields()  # set initial state
         self._apply_mode_band()      # set initial band color
+        self._autosize_to_contents()
 
     def _polish_platform(self):
         """Light platform-specific cosmetics, especially for macOS."""
@@ -93,11 +94,18 @@ class App:
         # 1) Safe default font: modify the named Tk default font in-place
         try:
             base = tkfont.nametofont("TkDefaultFont")
-            if sys.platform.startswith("win"):
-                base.configure(family="Segoe UI", size=9)
-            else:
+            #if sys.platform.startswith("win"):
+             #   base.configure(family="Segoe UI", size=9)
+            #else:
                 # keep platform family, just normalize size
-                base.configure(size=9)
+             #   base.configure(size=9)
+             # Make the default font ~3pt larger for readability across platforms
+            cur_size = base.cget("size")
+            try:
+                new_size = int(cur_size) + 3
+            except Exception:
+                new_size = 12
+            base.configure(size=new_size)
         except Exception:
             # If anything fails, we just keep the system default
             pass
@@ -129,35 +137,58 @@ class App:
 
     def _build(self):
         top = Frame(self.root); top.pack(fill="x", padx=10, pady=8)
+        # Use a tight 3-column grid: [Label] [Entry expands] [Browse button]
+        try:
+            top.grid_columnconfigure(0, weight=0)
+            top.grid_columnconfigure(1, weight=1)  # entries stretch
+            top.grid_columnconfigure(2, weight=0)
+        except Exception:
+            pass
 
-        Label(top, text="Mode:").grid(row=0, column=0, sticky="w")
-        ttk.Radiobutton(top, text="Embed",  variable=self.mode, value="embed").grid(row=0, column=1, sticky="w")
-        ttk.Radiobutton(top, text="Extract", variable=self.mode, value="extract").grid(row=0, column=2, sticky="w")
-        ttk.Checkbutton(top, text="Prefer saving extracted text", variable=self.pref_save_text).grid(row=5, column=5, sticky="w")
-        
-        Label(top, text="Input:").grid(row=1, column=0, sticky="w")
-        Entry(top, textvariable=self.file_in, width=60).grid(row=1, column=1, columnspan=3, sticky="w")
-        Button(top, text="Browse...", command=self.browse_in).grid(row=1, column=4)
+        # Row 0: Mode + pref checkbox (right-aligned)
+        Label(top, text="Mode:").grid(row=0, column=0, sticky="w", padx=(0,6))
+        mframe = Frame(top)
+        mframe.grid(row=0, column=1, sticky="w")
+        ttk.Radiobutton(mframe, text="Embed",  variable=self.mode, value="embed").pack(side="left")
+        ttk.Radiobutton(mframe, text="Extract", variable=self.mode, value="extract").pack(side="left", padx=(8,0))
+        ttk.Checkbutton(top, text="Prefer saving extracted text", variable=self.pref_save_text)\
+                        .grid(row=0, column=2, sticky="e")
 
-        # Output (embed only)
-        Label(top, text="Output (embed only):").grid(row=2, column=0, sticky="w")
-        self.output_entry  = Entry(top, textvariable=self.file_out, width=60)
-        self.output_entry.grid(row=2, column=1, columnspan=3, sticky="w")
-        self.output_button = Button(top, text="Browse...", command=self.browse_out)
-        self.output_button.grid(row=2, column=4)
+        # Row 1: Input
+        Label(top, text="Input:").grid(row=1, column=0, sticky="w", padx=(0,6))
+        in_frame = Frame(top)
+        in_frame.grid(row=1, column=1, columnspan=2, sticky="ew")
+        in_frame.grid_columnconfigure(0, weight=1)
+        Entry(in_frame, textvariable=self.file_in).grid(row=0, column=0, sticky="ew")
+        Button(in_frame, text="Browse…", command=self.browse_in).grid(row=0, column=1, sticky="e", padx=(6,0))
+
+        # Row 2: Output (embed only)
+        Label(top, text="Output (embed only):").grid(row=2, column=0, sticky="w", padx=(0,6))
+        out_frame = Frame(top)
+        out_frame.grid(row=2, column=1, columnspan=2, sticky="ew")
+        out_frame.grid_columnconfigure(0, weight=1)
+        self.output_entry = Entry(out_frame, textvariable=self.file_out)
+        self.output_entry.grid(row=0, column=0, sticky="ew")
+        self.output_button = Button(out_frame, text="Browse…", command=self.browse_out)
+        self.output_button.grid(row=0, column=1, sticky="e", padx=(6,0))
 
         Label(top, text="Password:").grid(row=3, column=0, sticky="w")
-        Entry(top, textvariable=self.password, show="*", width=30).grid(row=3, column=1, sticky="w")
-
-        Label(top, text="LSB/bpp:").grid(row=4, column=0, sticky="w")
-        ttk.Spinbox(top, from_=1, to=3, textvariable=self.lsb, width=5).grid(row=4, column=1, sticky="w")
-        ttk.Checkbutton(top, text="Spread (stealth)", variable=self.use_spread).grid(row=4, column=2, sticky="w")
-        ttk.Checkbutton(top, text="ECC (Reed–Solomon)", variable=self.use_ecc).grid(row=4, column=3, sticky="w")
-        Label(top, text="ECC parity:").grid(row=4, column=4, sticky="e")
-        Entry(top, textvariable=self.rs_nsym, width=6).grid(row=4, column=5, sticky="w")
+        Entry(top, textvariable=self.password, show="*").grid(row=3, column=1, sticky="ew")
+        Label(top, text="LSB/bpp:").grid(row=4, column=0, sticky="w", padx=(0,6))
+        oline = Frame(top); oline.grid(row=4, column=1, sticky="w")
+        ttk.Spinbox(oline, from_=1, to=3, textvariable=self.lsb, width=5).pack(side="left")
+        ttk.Checkbutton(oline, text="Spread (stealth)", variable=self.use_spread).pack(side="left", padx=(8,0))
+        ttk.Checkbutton(oline, text="ECC (Reed–Solomon)", variable=self.use_ecc).pack(side="left", padx=(8,0))
+        
+        # ECC parity (put label+entry in a tiny frame to avoid overlapping the same grid cell)
+        pframe = Frame(top)
+        pframe.grid(row=4, column=2, sticky="e")
+        Label(pframe, text="ECC parity:").pack(side="left", padx=(0,6))
+        Entry(pframe, textvariable=self.rs_nsym, width=6).pack(side="left")
+        
 
         # Lossless codec selector
-        Label(top, text="Lossless codec:").grid(row=5, column=0, sticky="w", pady=(4, 0))
+        Label(top, text="Lossless codec:").grid(row=5, column=0, sticky="w", pady=(4, 0), padx=(0,6))
         self.codec_cb = ttk.Combobox(
             top,
             textvariable=self.codec_sel,
@@ -166,15 +197,14 @@ class App:
             state="readonly"
         )
         self.codec_cb.grid(row=5, column=1, sticky="w", padx=(0, 8), pady=(4, 0))
-        Label(
-            top,
-            text="(h264rgb = smaller; ffv1 = largest)"
-        ).grid(row=5, column=2, columnspan=3, sticky="w", pady=(4, 0))
+        Label(top, text="(h264rgb = smaller; ffv1 = largest)")\
+            .grid(row=5, column=2, sticky="e", pady=(4, 0))
         mid = Frame(self.root); mid.pack(fill="both", expand=True, padx=10, pady=6)
         Label(mid, text="Message to embed (leave empty to embed a file):").pack(anchor="w")
-        self.msg = Text(mid, height=6); self.msg.pack(fill="x")
+        self.msg = Text(mid, height=6); self.msg.pack(fill="both", expand=True)
 
         btns = Frame(mid); btns.pack(fill="x", pady=8)
+        # Left-align action buttons to avoid empty gray space on the right
         Button(btns, text="Run",   command=self.run,  width=14).pack(side="left")
         Button(btns, text="Demo",  command=self.demo, width=10).pack(side="left", padx=6)
         Button(btns, text="Help",  command=self.help).pack(side="left", padx=6)
@@ -191,6 +221,20 @@ class App:
             self.mode.trace_add("write", on_mode_change)  # py3.8+
         except Exception:
             self.mode.trace("w", on_mode_change)          # older Tk fallback
+
+    def _autosize_to_contents(self):
+        """
+        Let Tk compute the natural size of the widgets, then fix the window to it.
+        This avoids platform-specific small default windows on macOS/Linux.
+        """
+        try:
+            self.root.update_idletasks()
+            req_w = self.root.winfo_reqwidth()
+            req_h = self.root.winfo_reqheight()
+            self.root.geometry(f"{req_w}x{req_h}")
+            self.root.minsize(req_w, req_h)
+        except Exception:
+            pass
 
     def _update_mode_fields(self):
         """Disable Output widgets in Extract mode; enable in Embed mode."""
@@ -316,37 +360,68 @@ class App:
                         use_rs=use_rs, rs_nsym=rs_nsym, progress=self._progress
                     )
 
-                # Decide text vs binary, suggest original filename if present
-                suggested = meta.get("filename") or ""
+                # Decide text vs binary, and whether to show popup or force save
+                orig_name = meta.get("filename") or ""
+                # Preserve original extension in Save dialog if we have a name
+                base, orig_ext = os.path.splitext(orig_name)
+
+                def _filetypes_for(ext: str):
+                    # Prefer the embedded type first; always allow All files
+                    if ext:
+                        pat = f"*{ext.lower()}"
+                        label = f"{ext.lower()} files"
+                        return [(label, pat), ("All files", "*.*")]
+                    return [("All files", "*.*")]
                 try:
                     text = pt.decode("utf-8")
-                    # Show a preview, then optionally save (default name honors original .txt if provided)
-                    preview = text if len(text) <= 2000 else (text[:2000] + "\n…(truncated)")
-                    if messagebox.askyesno("Extracted text", f"{preview}\n\nSave this text to a file?"):
-                        defext = ".txt"
-                        init   = suggested if suggested else "extracted.txt"
+                    # If an original filename exists, treat this as a file and force save (no big popup)
+                    if orig_name:
+                        init = orig_name
                         out = filedialog.asksaveasfilename(
-                            title="Save extracted text",
+                            title="Save extracted file",
                             initialfile=init,
-                            defaultextension=defext,
-                            filetypes=[("Text file","*.txt"), ("All files","*.*")]
+                            defaultextension=orig_ext or "",
+                            filetypes=_filetypes_for(orig_ext)
                         )
                         if out:
-                            with open(out, "w", encoding="utf-8") as fh:
-                                fh.write(text)
-                            messagebox.showinfo("Saved", f"Text saved to:\n{out}")
+                            # If user saves as .txt, write text; otherwise write bytes
+                            if out.lower().endswith(".txt"):
+                                with open(out, "w", encoding="utf-8") as fh:
+                                    fh.write(text)
+                            else:
+                                with open(out, "wb") as fh:
+                                    fh.write(pt)
+                            messagebox.showinfo("Saved", f"File saved to:\n{out}")
+                    else:
+                        # No original filename: it was typed-in text
+                        if len(text) <= 25:
+                            # Small strings get a simple popup
+                            messagebox.showinfo("Extracted text", text)
+                        else:
+                            # Longer strings: avoid huge popups, force a save dialog
+                            out = filedialog.asksaveasfilename(
+                                title="Save extracted text",
+                                initialfile="extracted.txt",
+                                defaultextension=".txt",
+                                filetypes=[("Text file","*.txt"), ("All files","*.*")]
+                            )
+                            if out:
+                                with open(out, "w", encoding="utf-8") as fh:
+                                    fh.write(text)
+                                messagebox.showinfo("Saved", f"Text saved to:\n{out}")
                 except UnicodeDecodeError:
-                    # Binary — force a save dialog (use original filename if present)
-                    init = suggested if suggested else "extracted.bin"
+                    # Binary data — force a save dialog; prefer original name if present
+                    init = orig_name if orig_name else "extracted.bin"
                     out = filedialog.asksaveasfilename(
                         title="Save extracted file",
                         initialfile=init,
-                        filetypes=[("All files","*.*")]
+                        defaultextension=orig_ext or (".bin" if orig_name else ""),
+                        filetypes=_filetypes_for(orig_ext) if orig_name else [("All files","*.*")]
                     )
                     if out:
                         with open(out, "wb") as fh:
                             fh.write(pt)
-                        messagebox.showinfo("Saved", f"Extracted bytes saved to:\n{out}")
+                        messagebox.showinfo("Saved", f"File saved to:\n{out}")
                                 
             self.status.set("Done")
             self.prog['value']=0

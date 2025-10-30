@@ -5,6 +5,52 @@ from spread_utils import permuted_indices, chunk_seed
 from crypto_utils import HEADER_LEN, SALT_LEN
 from payload_format import parse_payload
 
+def _quick_header_magic_ok(path, lsb_guess: int = 1) -> bool:
+    """
+    Reopen a just-written video and confirm we can read the MAGIC from the
+    sequential header area. Uses the same LSB auto-detect you use at extract.
+    Returns True if MAGIC found, else False.
+    """
+    import cv2, numpy as np, struct
+    from crypto_utils import MAGIC, HEADER_LEN, SALT_LEN
+    from bit_utils import bits_to_bytes
+
+    cap = cv2.VideoCapture(path)
+    if not cap.isOpened():
+        return False
+    w  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h  = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    channels = 3
+    header_slots = HEADER_LEN * 8
+    salt_slots   = SALT_LEN   * 8
+    slots_per_frame = max(1, w*h*channels*lsb_guess)
+    seq_frames   = int(np.ceil((header_slots + salt_slots) / slots_per_frame))
+    frames = []
+    for _ in range(max(1, seq_frames)):
+        ret, f = cap.read()
+        if not ret:
+            break
+        frames.append(f)
+    cap.release()
+    if not frames:
+        return False
+    stacked = np.stack(frames, axis=0)
+    flat = stacked.ravel()
+    tried = [lsb_guess] + [x for x in (1,2,3) if x != lsb_guess]
+    for test_lsb in tried:
+        hb = []
+        for i in range(header_slots):
+            bidx = i // test_lsb; off = i % test_lsb
+            if bidx >= flat.size:
+                break
+            hb.append((int(flat[bidx]) >> off) & 1)
+        if not hb or len(hb) < header_slots:
+            continue
+        cand = bits_to_bytes(np.array(hb, dtype=np.uint8))
+        if cand[:len(MAGIC)] == MAGIC:
+            return True
+    return False
+
 def _write_bit(flat: np.ndarray, slot: int, lsb: int, bit: int):
     bidx, off = slot // lsb, slot % lsb
     flat[bidx] = (int(flat[bidx]) & ~(1<<off)) | ((bit & 1) << off)
@@ -118,6 +164,17 @@ def embed_video_streaming(in_path, out_path, full_payload: bytes, password: str,
     writer.close()
     if bit_idx < need_bits:
         raise RuntimeError("Ran out of capacity before finishing payload")
+        
+    # --- Post-embed verification to catch any lossless/pix_fmt mishaps early
+    if not _quick_header_magic_ok(out_path, lsb_guess=lsb):
+        raise RuntimeError(
+            "Verification failed: header magic not found in output video.\n\n"
+            "This usually means the encoder path wasn't truly lossless or the pixel format changed.\n"
+            "Tips:\n"
+            "  • Prefer codec='ffv1' (Matroska .mkv) for exact per-pixel preservation.\n"
+            "  • If using h264rgb, ensure ffmpeg uses libx264rgb with -crf 0, -preset veryslow, and -pix_fmt bgr24 (to match OpenCV BGR).\n"
+            "  • Avoid any post-processing/transcoding tools that may rewrite frames."
+        )
 
 def extract_video_streaming(in_path, password: str, lsb: int=1, spread=True, chunk_frames: int=60,
                             use_rs=False, rs_nsym=0, progress=None):
@@ -164,13 +221,21 @@ def extract_video_streaming(in_path, password: str, lsb: int=1, spread=True, chu
     stacked = np.stack(frames, axis=0)
     flat = stacked.ravel()
 
-    # Header (sequential, from slot 0)
-    hb = []
-    for i in range(header_slots):
-        bidx = i // lsb; off = i % lsb
-        hb.append((int(flat[bidx]) >> off) & 1)
-    header = bits_to_bytes(np.array(hb, dtype=np.uint8))
-    if header[:len(MAGIC)] != MAGIC:
+    # Header (sequential, from slot 0) with LSB auto-detect like image path
+    from bit_utils import bits_to_bytes
+    tried = [lsb] + [x for x in (1,2,3) if x != lsb]
+    header = None
+    for test_lsb in tried:
+        hb = []
+        for i in range(header_slots):
+            bidx = i // test_lsb; off = i % test_lsb
+            hb.append((int(flat[bidx]) >> off) & 1)
+        cand = bits_to_bytes(np.array(hb, dtype=np.uint8))
+        if cand[:len(MAGIC)] == MAGIC:
+            header = cand
+            lsb = test_lsb   # lock in the detected LSB for the rest of extraction
+            break
+    if header is None:
         cap.release()
         raise ValueError("Magic not found")
 
