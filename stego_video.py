@@ -3,6 +3,7 @@ import cv2, numpy as np
 from bit_utils import bytes_to_bits, bits_to_bytes
 from spread_utils import permuted_indices, chunk_seed
 from crypto_utils import HEADER_LEN, SALT_LEN
+from payload_format import parse_payload
 
 def _write_bit(flat: np.ndarray, slot: int, lsb: int, bit: int):
     bidx, off = slot // lsb, slot % lsb
@@ -35,7 +36,7 @@ def embed_video_streaming(in_path, out_path, full_payload: bytes, password: str,
     total_slots = total_frames * w * h * channels * lsb
     if need_bits > total_slots: 
         cap.release()
-        raise ValueError("Payload too large for this video with selected LSB")
+        raise ValueError("Payload too large for this video with selected LSB (capacity exceeded)")
 
     # header + salt sequential occupy the first (HEADER_LEN+SALT_LEN)*8 slots of the stream
     header_slots = HEADER_LEN * 8
@@ -127,7 +128,6 @@ def extract_video_streaming(in_path, password: str, lsb: int=1, spread=True, chu
              because the embedder didn't use it either.
     """
     import struct
-    from payload_format import parse_payload
     from crypto_utils import MAGIC, HEADER_LEN, SALT_LEN
     from bit_utils import bits_to_bytes
 
@@ -233,4 +233,5 @@ def extract_video_streaming(in_path, password: str, lsb: int=1, spread=True, chu
 
     full = header + bits_to_bytes(np.array(pb, dtype=np.uint8))
     return parse_payload(full, password, use_rs=use_rs, rs_nsym=rs_nsym)
+    
 

@@ -4,6 +4,7 @@ from PIL import Image
 from bit_utils import bytes_to_bits, bits_to_bytes
 from spread_utils import permuted_indices
 from crypto_utils import HEADER_LEN, SALT_LEN
+from payload_format import parse_payload
 
 def embed_image(in_path, out_path, full_payload: bytes, password: str, lsb: int=1, spread=True, progress=None):
     img = Image.open(in_path).convert("RGB")
@@ -13,13 +14,16 @@ def embed_image(in_path, out_path, full_payload: bytes, password: str, lsb: int=
 
     bits = bytes_to_bits(full_payload)
     need = bits.size
-    if need > total_slots: raise ValueError("Payload too large for this image with current LSB setting")
+    # Make sure GUI can key off "too large" / "capacity"
+    if need > total_slots:
+        raise ValueError("Payload too large for this image with current LSB (capacity exceeded)")
 
     header_slots = HEADER_LEN * 8
     salt_slots   = SALT_LEN * 8
     rem_slots    = total_slots - (header_slots + salt_slots)
     rem_bits     = need - (header_slots + salt_slots)
-    if rem_bits < 0: raise ValueError("Payload smaller than header+salt?")
+    if rem_bits < 0:
+        raise ValueError("Internal size mismatch: payload smaller than header+salt (unexpected)")
 
     # Write header (sequential)
     for i in range(header_slots):
@@ -47,8 +51,7 @@ def embed_image(in_path, out_path, full_payload: bytes, password: str, lsb: int=
     Image.fromarray(flat.reshape(arr.shape), "RGB").save(out_path)
 
 def extract_image(in_path, password: str, use_rs=False, rs_nsym=0, lsb: int=1, spread=True, progress=None):
-    from payload_format import parse_payload
-    from crypto_utils import HEADER_LEN, SALT_LEN, MAGIC
+    from crypto_utils import MAGIC
     import struct
 
     img = Image.open(in_path).convert("RGB")
@@ -64,7 +67,6 @@ def extract_image(in_path, password: str, use_rs=False, rs_nsym=0, lsb: int=1, s
     for i in range(header_slots):
         bidx = i // lsb; off = i % lsb
         hb.append((int(flat[bidx]) >> off) & 1)
-    from bit_utils import bits_to_bytes
     header = bits_to_bytes(np.array(hb, dtype=np.uint8))
 
     if header[:len(MAGIC)] != MAGIC: raise ValueError("Magic not found")
@@ -72,8 +74,9 @@ def extract_image(in_path, password: str, use_rs=False, rs_nsym=0, lsb: int=1, s
     payload_bits_needed = pay_len * 8
 
     salt_slots = SALT_LEN * 8
-    if header_slots + salt_slots + payload_bits_needed - salt_slots > total_slots:
-        raise ValueError("Capacity mismatch")
+    # Capacity must cover: header + full payload (which already includes salt)
+    if header_slots + payload_bits_needed > total_slots:
+        raise ValueError("Capacity mismatch (carrier too small for embedded payload)")
 
     # salt seq
     sb = []

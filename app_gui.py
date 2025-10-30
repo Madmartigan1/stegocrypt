@@ -1,12 +1,11 @@
 # app_gui.py
 import os, sys, traceback
-from tkinter import font as tkfont
 from tkinter import Tk, Frame, Label, Button, Entry, Text, END, filedialog, StringVar, IntVar, BooleanVar, ttk, messagebox
 from payload_format import build_payload
 from stego_image import embed_image, extract_image
 from stego_video import embed_video_streaming, extract_video_streaming
 
-import sys, platform
+import platform
 import tkinter.font as tkfont
 
 def human_status(done, total):
@@ -32,6 +31,7 @@ class App:
         self.use_ecc   = BooleanVar(value=False)
         self.rs_nsym   = IntVar(value=32)
         self.codec_sel = StringVar(value="h264rgb")  # 'h264rgb' or 'ffv1'
+        self.pref_save_text = BooleanVar(value=True) # prefer saving extracted text to file
         self.status    = StringVar(value="Ready")
         self._polish_platform()
         self._build()
@@ -133,7 +133,8 @@ class App:
         Label(top, text="Mode:").grid(row=0, column=0, sticky="w")
         ttk.Radiobutton(top, text="Embed",  variable=self.mode, value="embed").grid(row=0, column=1, sticky="w")
         ttk.Radiobutton(top, text="Extract", variable=self.mode, value="extract").grid(row=0, column=2, sticky="w")
-
+        ttk.Checkbutton(top, text="Prefer saving extracted text", variable=self.pref_save_text).grid(row=5, column=5, sticky="w")
+        
         Label(top, text="Input:").grid(row=1, column=0, sticky="w")
         Entry(top, textvariable=self.file_in, width=60).grid(row=1, column=1, columnspan=3, sticky="w")
         Button(top, text="Browse...", command=self.browse_in).grid(row=1, column=4)
@@ -241,38 +242,112 @@ class App:
             _, ext = os.path.splitext(inp.lower())
 
             if mode.lower() == "embed":
+                # Prepare secret + remember original name if embedding a file
+                orig_name = None
                 if msg:
                     secret = msg.encode("utf-8")
                 else:
-                    f = filedialog.askopenfilename(title="Select file to embed")
-                    if not f: self.status.set("Cancelled"); return
-                    with open(f, "rb") as fh: secret = fh.read()
+                    fsel = filedialog.askopenfilename(title="Select file to embed")
+                    if not fsel:
+                        self.status.set("Cancelled"); return
+                    with open(fsel, "rb") as fh:
+                        secret = fh.read()
+                    orig_name = os.path.basename(fsel)
 
-                full = build_payload(secret, pwd, use_rs=use_rs, rs_nsym=rs_nsym)
+                full = build_payload(secret, pwd, use_rs=use_rs, rs_nsym=rs_nsym, orig_name=orig_name)
 
                 if ext in [".png",".jpg",".jpeg",".bmp",".gif",".tiff"]:
-                    embed_image(inp, outp, full, pwd, lsb=lsb, spread=spread, progress=self._progress)
+                    # Pre-check capacity so we can give a friendly message
+                    from PIL import Image
+                    import numpy as _np
+                    img = Image.open(inp).convert("RGB")
+                    arr = _np.array(img, dtype=_np.uint8)
+                    total_slots = arr.size * lsb            # pixels*3 * lsb
+                    needed_bits = len(full) * 8             # header+salt+ciphertext
+                    if needed_bits > total_slots:
+                        messagebox.showerror(
+                            "Too large for image",
+                            "The selected secret is too large for this image with the current LSB setting.\n\n"
+                            "→ Try using a video container instead (FFV1 for maximum robustness or H264RGB for a smaller file)."
+                        )
+                        self.status.set("Ready"); self.prog['value']=0
+                        return
+
+                    # Embed (image path raises ValueError with 'capacity' too, just in case)
+                    try:
+                        embed_image(inp, outp, full, pwd, lsb=lsb, spread=spread, progress=self._progress)
+                    except ValueError as e:
+                        msg_err = str(e).lower()
+                        if "too large" in msg_err or "capacity" in msg_err:
+                            messagebox.showerror("Too large for image",
+                                "The selected secret is too large for this image with the current LSB.\n\n"
+                                "→ Use a video container (FFV1/H264RGB).")
+                            self.status.set("Ready"); self.prog['value']=0
+                            return
+                        raise
                     messagebox.showinfo("Done", f"Embedded into image:\n{outp}")
                 else:
-                    embed_video_streaming(inp, outp, full, pwd, lsb=lsb, spread=spread,
-                                          chunk_frames=90, codec=self.codec_sel.get(),
-                                          progress=self._progress)
-                    messagebox.showinfo("Done", f"Embedded into video:\n{outp}")
+                    # Video: support both ffv1 (lossless) and h264rgb (smaller)
+                    try:
+                        embed_video_streaming(inp, outp, full, pwd, lsb=lsb, spread=spread,
+                                              chunk_frames=90, codec=self.codec_sel.get(), progress=self._progress)
+                    except ValueError as e:
+                        # Extremely unlikely here, but mirror image behavior
+                        msg_err = str(e).lower()
+                        if "too large" in msg_err or "capacity" in msg_err:
+                            messagebox.showerror(
+                                "Too large for this video",
+                                "The selected secret is too large for this video with current settings.\n\n"
+                                "Try a longer/higher-resolution video, reduce LSB=1, or split the file."
+                            )
+                        else:
+                            raise
+                    else:
+                        messagebox.showinfo("Done", f"Embedded into video:\n{outp}")
 
             else:  # extract
                 if ext in [".png",".jpg",".jpeg",".bmp",".gif",".tiff"]:
-                    pt = extract_image(inp, pwd, use_rs=use_rs, rs_nsym=rs_nsym, lsb=lsb, spread=spread, progress=self._progress)
+                    pt, meta = extract_image(
+                        inp, pwd, use_rs=use_rs, rs_nsym=rs_nsym, lsb=lsb, spread=spread, progress=self._progress
+                    )
                 else:
-                    pt = extract_video_streaming(inp, pwd, lsb=lsb, spread=spread, chunk_frames=90,
-                                                 use_rs=use_rs, rs_nsym=rs_nsym, progress=self._progress)
+                    pt, meta = extract_video_streaming(
+                        inp, pwd, lsb=lsb, spread=spread, chunk_frames=90,
+                        use_rs=use_rs, rs_nsym=rs_nsym, progress=self._progress
+                    )
+
+                # Decide text vs binary, suggest original filename if present
+                suggested = meta.get("filename") or ""
                 try:
                     text = pt.decode("utf-8")
-                    messagebox.showinfo("Extracted text", text)
-                except Exception:
-                    out = filedialog.asksaveasfilename(title="Save extracted file")
+                    # Show a preview, then optionally save (default name honors original .txt if provided)
+                    preview = text if len(text) <= 2000 else (text[:2000] + "\n…(truncated)")
+                    if messagebox.askyesno("Extracted text", f"{preview}\n\nSave this text to a file?"):
+                        defext = ".txt"
+                        init   = suggested if suggested else "extracted.txt"
+                        out = filedialog.asksaveasfilename(
+                            title="Save extracted text",
+                            initialfile=init,
+                            defaultextension=defext,
+                            filetypes=[("Text file","*.txt"), ("All files","*.*")]
+                        )
+                        if out:
+                            with open(out, "w", encoding="utf-8") as fh:
+                                fh.write(text)
+                            messagebox.showinfo("Saved", f"Text saved to:\n{out}")
+                except UnicodeDecodeError:
+                    # Binary — force a save dialog (use original filename if present)
+                    init = suggested if suggested else "extracted.bin"
+                    out = filedialog.asksaveasfilename(
+                        title="Save extracted file",
+                        initialfile=init,
+                        filetypes=[("All files","*.*")]
+                    )
                     if out:
-                        with open(out, "wb") as fh: fh.write(pt)
+                        with open(out, "wb") as fh:
+                            fh.write(pt)
                         messagebox.showinfo("Saved", f"Extracted bytes saved to:\n{out}")
+                                
             self.status.set("Done")
             self.prog['value']=0
         except Exception as e:
@@ -284,7 +359,10 @@ class App:
     def help(self):
         messagebox.showinfo("Notes",
             "- For stealth, keep LSB=1 and enable Spread.\n"
-            "- For durability, use FFV1 (lossless). Requires ffmpeg in PATH.\n"
+            "- Video codec:\n"
+            "    • FFV1  — Lossless (largest files, best robustness)\n"
+            "    • H264RGB — Smaller output (still safe for our per-pixel writes)\n"
+            "- Requires ffmpeg in PATH for video muxing.\n"
             "- ECC adds parity (larger payload) to correct some errors.\n"
             "- Header + salt are stored sequentially; the rest is pseudo-randomly spread.\n"
             "- Streaming mode processes frames in chunks—safe for long videos."
