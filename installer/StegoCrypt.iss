@@ -1,5 +1,5 @@
 ﻿#define MyAppName "StegoCrypt"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion ""
 #define MyAppPublisher "Your Name or Org"
 #define MyAppExeName "StegoCrypt.exe"
 
@@ -29,3 +29,4 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
