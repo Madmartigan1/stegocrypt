@@ -89,12 +89,14 @@ jobs:
           & $iscc `
             "/DMyAppVersion=$ver" `
             "/O+installer\Output" `
+            "/FWindows-StegoCrypt-Setup" `
             "installer\StegoCrypt.iss"
 
           if ($LASTEXITCODE -ne 0) {
             throw "Inno Setup failed with exit code $LASTEXITCODE"
           }
 
+          if (!(Test-Path installer\Output\Windows-StegoCrypt-Setup.exe)) { throw "installer\Output\Windows-StegoCrypt-Setup.exe not found" }
           if (Test-Path installer\Output) {
             Get-ChildItem installer\Output -Force
           } else {
@@ -105,7 +107,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: installer/Output/Windows-StegoCrypt-Setup-*.exe
+          files: installer/Output/Windows-StegoCrypt-Setup.exe
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
