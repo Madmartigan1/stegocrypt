@@ -2,7 +2,7 @@
 
 Steganography hides the existence of data; encryption protects the content. Hide encrypted messages or files inside images/videos with password-protected, pixel-level steganography. 
 
-✅ GUI app for Windows • Optional CLI • Lossless output for reliable extraction.
+✅ GUI app for Windows, MacOS and Linux • Optional CLI • Lossless output for reliable extraction.
 
 [![Download](https://img.shields.io/github/v/tag/Madmartigan1/stegocrypt?label=Download%20Installer)](../../releases/latest)
   

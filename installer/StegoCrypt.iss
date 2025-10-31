@@ -1,5 +1,8 @@
 ﻿#define MyAppName "StegoCrypt"
-#define MyAppVersion ""
+#ifndef MyAppVersion
+  ; Fallback for local/manual builds; CI will override via /DMyAppVersion=<tag>
+  #define MyAppVersion "0.0.0"
+#endif
 #define MyAppPublisher "Your Name or Org"
 #define MyAppExeName "StegoCrypt.exe"
 
@@ -10,6 +13,7 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
+OutputDir=Output
 DisableProgramGroupPage=yes
 OutputBaseFilename=Windows-StegoCrypt-Setup
 Compression=lzma
