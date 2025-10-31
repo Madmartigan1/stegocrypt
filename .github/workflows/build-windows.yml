@@ -82,13 +82,14 @@ jobs:
             if (-not $ver) { $ver = "0.0.0" }
           }
           
-          # Ensure output dir exists; /O+ sets OutputDir relative to the .iss dir
-          New-Item -ItemType Directory -Force -Path installer\Output | Out-Null
+          # Ensure output dir exists; /O sets OutputDir (use absolute path to avoid '+installer' issue)
+          $outDir = (Resolve-Path 'installer\Output').Path
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 
           & $iscc `
             "/DMyAppVersion=$ver" `
-            "/O+installer\Output" `
+            "/O$outDir" `
             "/FWindows-StegoCrypt-Setup" `
             "installer\StegoCrypt.iss"
 
@@ -96,9 +97,10 @@ jobs:
             throw "Inno Setup failed with exit code $LASTEXITCODE"
           }
 
-          if (!(Test-Path installer\Output\Windows-StegoCrypt-Setup.exe)) { throw "installer\Output\Windows-StegoCrypt-Setup.exe not found" }
-          if (Test-Path installer\Output) {
-            Get-ChildItem installer\Output -Force
+          $setupPath = Join-Path $outDir 'Windows-StegoCrypt-Setup.exe'
+          if (!(Test-Path $setupPath)) { throw "$setupPath not found" }
+          if (Test-Path $outDir) {
+            Get-ChildItem $outDir -Force
           } else {
             throw "installer\Output was not created"
           }
