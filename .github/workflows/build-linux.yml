@@ -45,8 +45,8 @@ jobs:
 
       - name: Package tarball
         run: |
-          tar -C dist -czf StegoCrypt-linux.tar.gz StegoCrypt
-          ls -la StegoCrypt-linux.tar.gz
+          tar -C dist -czf Linux-StegoCrypt-linux.tar.gz StegoCrypt
+          ls -la Linux-StegoCrypt-linux.tar.gz
 
       # Upload to the current run's artifacts (always available for manual download)
       - name: Upload artifacts
@@ -55,7 +55,7 @@ jobs:
         with:
           name: linux-build-artifacts
           path: |
-            StegoCrypt-linux.tar.gz
+            Linux-StegoCrypt-linux.tar.gz
             dist/**
             build/**
             *.spec
@@ -67,7 +67,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release_tag }}
-          files: StegoCrypt-linux.tar.gz
+          files: Linux-StegoCrypt-linux.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -76,6 +76,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: StegoCrypt-linux.tar.gz
+          files: Linux-StegoCrypt-linux.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
