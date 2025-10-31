@@ -20,7 +20,7 @@ However, if the adversary suspects steganography and runs tools like StegExpose 
 ---
 
 
-## Prerequisite
+## Recommended
 Install FFMPEG:
 ```
 #Linux (Debian/Ubuntu)
