@@ -75,11 +75,13 @@ jobs:
             throw "Expected dist\StegoCrypt\StegoCrypt.exe"
           }
 
-          # Derive version from tag (strip leading v). Fallback to 0.0.0 for non-tag runs.
-          $tag = "${{ github.ref_name }}"
-          $ver = ($tag -replace '^v','')
-          if (-not $ver -or -not ${{ startsWith(github.ref, 'refs/tags/') }}) { $ver = "0.0.0" }
-
+          # Derive version from tag via env vars (no GitHub expressions inside PS)
+          $ver = "0.0.0"
+          if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $ver = $env:GITHUB_REF_NAME -replace '^v',''
+            if (-not $ver) { $ver = "0.0.0" }
+          }
+          
           # Ensure output dir exists; /O+ sets OutputDir relative to the .iss dir
           New-Item -ItemType Directory -Force -Path installer\Output | Out-Null
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
