@@ -82,8 +82,8 @@ jobs:
             if (-not $ver) { $ver = "0.0.0" }
           }
           
-          # Ensure output dir exists; /O sets OutputDir (use absolute path to avoid '+installer' issue)
-          $outDir = (Resolve-Path 'installer\Output').Path
+          # Ensure output dir exists; compute absolute path and pass to ISCC /O
+          $outDir = Join-Path $PWD 'installer\Output'
           New-Item -ItemType Directory -Force -Path $outDir | Out-Null
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 
@@ -99,11 +99,7 @@ jobs:
 
           $setupPath = Join-Path $outDir 'Windows-StegoCrypt-Setup.exe'
           if (!(Test-Path $setupPath)) { throw "$setupPath not found" }
-          if (Test-Path $outDir) {
-            Get-ChildItem $outDir -Force
-          } else {
-            throw "installer\Output was not created"
-          }
+          Get-ChildItem $outDir -Force
 
       - name: Upload to Release (EXE)
         if: startsWith(github.ref, 'refs/tags/')
