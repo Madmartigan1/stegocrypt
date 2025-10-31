@@ -80,7 +80,7 @@ jobs:
             fi
           done
           # Remove any existing DMG outputs
-          rm -f dist/StegoCrypt-Setup*.dmg
+          rm -f dist/MacOS-StegoCrypt-Setup*.dmg
 
       - name: Create DMG (robust)
         run: |
@@ -100,10 +100,10 @@ jobs:
           done
 
           # Clean any previous outputs in case a prior attempt left them
-          rm -f "dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg"
+          rm -f "dist/MacOS-StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg"
 
           VOL="StegoCrypt-${{ matrix.dmg_suffix }}-${{ github.run_id }}"
-          OUT="dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg"
+          OUT="dist/MacOS-StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg"
 
           # Retry loop to dodge transient Spotlight/Gatekeeper locks
           n=0
@@ -129,7 +129,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg
+          files: dist/MacOS-StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -139,7 +139,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release_tag }}
-          files: dist/StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg
+          files: dist/MacOS-StegoCrypt-Setup-${{ matrix.dmg_suffix }}.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
