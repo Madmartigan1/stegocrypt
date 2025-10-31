@@ -206,7 +206,7 @@ class App:
         btns = Frame(mid); btns.pack(fill="x", pady=8)
         # Left-align action buttons to avoid empty gray space on the right
         Button(btns, text="Run",   command=self.run,  width=14).pack(side="left")
-        Button(btns, text="Demo",  command=self.demo, width=10).pack(side="left", padx=6)
+        Button(btns, text="Usage", command=self.show_usage, width=10).pack(side="left", padx=6)
         Button(btns, text="Help",  command=self.help).pack(side="left", padx=6)
         Button(btns, text="Clear", command=self.clear).pack(side="left", padx=6)
 
@@ -255,7 +255,7 @@ class App:
             base, ext = os.path.splitext(f)
             # Only suggest Output in Embed mode
             if self.mode.get().lower() == "embed":
-                self.file_out.set(base + ("_stego.png" if ext.lower() in [".png",".bmp",".tiff",".gif",".jpg",".jpeg"] else "_stego.mkv"))
+                self.file_out.set(base + ("_gen.png" if ext.lower() in [".png",".bmp",".tiff",".gif",".jpg",".jpeg"] else "_gen.mkv"))
             else:
                 self.file_out.set("")
 
@@ -394,7 +394,7 @@ class App:
                             messagebox.showinfo("Saved", f"File saved to:\n{out}")
                     else:
                         # No original filename: it was typed-in text
-                        if len(text) <= 25:
+                        if len(text) <= 48:
                             # Small strings get a simple popup
                             messagebox.showinfo("Extracted text", text)
                         else:
@@ -433,41 +433,39 @@ class App:
 
     def help(self):
         messagebox.showinfo("Notes",
+            "- Ensure you have ffmpeg installed.\n\n"
             "- For stealth, keep LSB=1 and enable Spread.\n"
             "- Video codec:\n"
             "    • FFV1  — Lossless (largest files, best robustness)\n"
-            "    • H264RGB — Smaller output (still safe for our per-pixel writes)\n"
+            "    • H264RGB — Smaller output (still safe for our per-pixel writes)\n\n"
             "- Requires ffmpeg in PATH for video muxing.\n"
             "- ECC adds parity (larger payload) to correct some errors.\n"
             "- Header + salt are stored sequentially; the rest is pseudo-randomly spread.\n"
             "- Streaming mode processes frames in chunks—safe for long videos."
         )
+        
+    def show_usage(self):
+        msg = (
+            "To embed secret:\n"
+            "- Input: Choose your image or video file\n"
+            "- Output: Same location by default or choose destination\n"
+            "- Set a good password (i.e., Gh34-u!r7)\n"
+            "- Enter secret phrase or leave blank to embed a secret file\n"
+            "- Click Run\n\n"
+            "To extract secret:\n"
+            "- Input: Choose the generated image or video\n"
+            "- Output: Disabled (not needed)\n"
+            "- Enter password shared secretly by sender\n"
+            "- Click Run"
+        )
+        try:
+            messagebox.showinfo("Usage", msg)
+        except Exception:
+            # Fallback: set status if messagebox can't open (headless envs, etc.)
+            self.status.set("Usage:\n" + msg.replace("\n", " | "))
 
     def clear(self):
         self.msg.delete("1.0", END)
         self.file_in.set(""); self.file_out.set(""); self.password.set("")
         self.status.set("Ready"); self.prog['value']=0
 
-    def demo(self):
-        """Make a tiny synthetic video, embed a test string, extract it back."""
-        import numpy as np, cv2, tempfile
-        self.status.set("Running demo…"); self.root.update_idletasks()
-        h,w,F = 48,64,60
-        tmpdir = tempfile.mkdtemp(prefix="stego_demo_")
-        src = os.path.join(tmpdir, "src_demo.mkv")
-        out = os.path.join(tmpdir, "out_demo.mkv")
-        vw = cv2.VideoWriter(src, cv2.VideoWriter_fourcc(*"MJPG"), 30.0, (w,h))
-        for i in range(F):
-            frame = (np.random.rand(h,w,3)*255).astype("uint8")
-            vw.write(frame)
-        vw.release()
-        secret = b"Hello from the Stego demo!"
-        if not self.password.get(): self.password.set("demo_pass_123")
-        full = build_payload(secret, self.password.get(), use_rs=False, rs_nsym=0)
-        embed_video_streaming(src, out, full, self.password.get(), lsb=1, spread=True, chunk_frames=30, codec=self.codec_sel.get())
-        recovered = extract_video_streaming(out, self.password.get(), lsb=1, spread=True, chunk_frames=30, use_rs=False, rs_nsym=0)
-        try:
-            messagebox.showinfo("Demo Result", "Extracted:\n" + recovered.decode("utf-8"))
-        except Exception:
-            messagebox.showinfo("Demo Result", f"Extracted {len(recovered)} bytes.")
-        self.status.set(f"Demo files in: {tmpdir}")
