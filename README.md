@@ -1,6 +1,6 @@
 # StegoCrypt
 
-Steganography hides the existence of data; encryption protects the content. Hide encrypted messages or files inside images/videos with password-protected, pixel-level steganography. 
+Steganography hides the existence of data, while encryption protects its content. StegoCrypt combines both — hiding encrypted messages or files inside images or videos using password-protected, pixel-level steganography.
 
 ✅ GUI app for Windows, MacOS and Linux • Optional CLI • Lossless output for reliable extraction.
 
@@ -22,7 +22,8 @@ However, if the adversary suspects steganography and runs tools like StegExpose 
 ## Recommended
 Install ffmpeg
 
-**Why ffmpeg?** StegoCrypt uses ffmpeg to read/write video frames losslessly (`ffv1` / `h264rgb`), preserve LSB integrity and verify outputs. Without it, video stego is limited or unavailable (images still work).
+**Why ffmpeg?** 
+StegoCrypt uses ffmpeg to read/write video frames losslessly (`ffv1` / `h264rgb`), preserve LSB integrity and verify outputs. Without it, video stego is limited or unavailable (images still work).
 
 ```
 #Linux (Debian/Ubuntu)
@@ -67,7 +68,7 @@ python stego_cli.py extract -i cover_stego.png -p "secret"
 
 ---
 
-**Documenation**
+**Documentation**
 - For more info on CLI usage, please refer to the manual at [/docs/CLIOpsManual.pdf](/docs/CLIOpsManual.pdf)
 - For information on mathematical detail behind this project, please see [docs/MathematicalDescription.pdf](docs/MathematicalDescription.pdf)
 
