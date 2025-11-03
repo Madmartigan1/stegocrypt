@@ -20,9 +20,9 @@ However, if the adversary suspects steganography and runs tools like StegExpose 
 ---
 
 ## Recommended
-Install FFMPEG
+Install ffmpeg
 
-**Why FFmpeg?** StegoCrypt uses FFmpeg to read/write video frames losslessly (`ffv1` / `h264rgb`), preserve LSB integrity, and verify outputs. Without it, video stego is limited or unavailable (images still work).
+**Why ffmpeg?** StegoCrypt uses ffmpeg to read/write video frames losslessly (`ffv1` / `h264rgb`), preserve LSB integrity and verify outputs. Without it, video stego is limited or unavailable (images still work).
 
 ```
 #Linux (Debian/Ubuntu)
