@@ -15,7 +15,7 @@ def human_status(done, total):
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("Stego — Image/Video (PRNG spread, ECC, FFV1)")
+        self.root.title("StegoCrypt — Secrets in Plain Sight")
         #self.root.geometry("820x560")
         # Subtle, modern default look (font + theme + paddings)
         self._setup_styles()
@@ -433,7 +433,6 @@ class App:
 
     def help(self):
         messagebox.showinfo("Notes",
-            "- Ensure you have ffmpeg installed.\n\n"
             "- For stealth, keep LSB=1 and enable Spread.\n"
             "- Video codec:\n"
             "    • FFV1  — Lossless (largest files, best robustness)\n"
