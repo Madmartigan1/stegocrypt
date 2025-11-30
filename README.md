@@ -53,6 +53,11 @@ Use **strong passwords** and keep LSB at **1** unless you explicitly need more c
 
 ---
 
+### Main Interface
+![StegoCrypt GUI](docs/screen.jpg)
+
+---
+
 ## Download
 
 ➡️ **[Get the latest StegoCrypt installer for Windows, MacOS or Linux](../../releases/latest)**
