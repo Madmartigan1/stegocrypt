@@ -58,7 +58,7 @@ Use **strong passwords** and keep LSB at **1** unless you explicitly need more c
 
 ---
 
-## Download
+## 📥 Download
 
 ➡️ **[Get the latest StegoCrypt installer for Windows, MacOS or Linux](../../releases/latest)**
 
@@ -82,7 +82,7 @@ choco install ffmpeg
 
 ---
 
-## Run from source (Windows/macOS/Linux)
+## 🛠️ Run from source (Windows/macOS/Linux)
 
 ```bash
 # from repo root
@@ -101,7 +101,7 @@ python main.py
 ```
 
 
-If you prefer to run directly in CLI, here are some examples:
+## 💻 CLI Examples:
 ```
 # Embed text into an image
 python stego_cli.py embed -i cover.png -o out.png -p "secret123" -m "Hello world"
@@ -112,7 +112,7 @@ python stego_cli.py extract -i out.png -p "secret123"
 
 ---
 
-**Documentation**
+##📄 Documentation
 
 - For more info on CLI usage, please refer to the manual at [/docs/CLIOpsManual.pdf](/docs/CLIOpsManual.pdf)
 - For information on mathematical detail behind this project, please see [docs/MathematicalDescription.pdf](docs/MathematicalDescription.pdf)
