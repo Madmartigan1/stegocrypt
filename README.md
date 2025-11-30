@@ -64,7 +64,7 @@ Use **strong passwords** and keep LSB at **1** unless you explicitly need more c
 
 ---
 
-# 🔧 Install ffmpeg (required for video)
+## 🔧 Install ffmpeg (required for video)
 
 **Why ffmpeg?** 
 StegoCrypt uses ffmpeg to read/write video frames losslessly (`ffv1` / `h264rgb`), preserve LSB integrity and verify outputs. Without it, video stego is limited or unavailable (images still work).
@@ -112,7 +112,7 @@ python stego_cli.py extract -i out.png -p "secret123"
 
 ---
 
-##📄 Documentation
+## 📄 Documentation
 
 - For more info on CLI usage, please refer to the manual at [/docs/CLIOpsManual.pdf](/docs/CLIOpsManual.pdf)
 - For information on mathematical detail behind this project, please see [docs/MathematicalDescription.pdf](docs/MathematicalDescription.pdf)
