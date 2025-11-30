@@ -1,4 +1,8 @@
 # StegoCrypt
+![Platform](https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-blue)
+![License](https://img.shields.io/github/license/Madmartigan1/stegocrypt)
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
+![FFmpeg](https://img.shields.io/badge/FFmpeg-required-green)
 
 Steganography hides the existence of data, while encryption protects its content. StegoCrypt combines both — hiding encrypted messages or files inside images or videos using password-protected, pixel-level steganography.
 
