@@ -113,7 +113,18 @@ python stego_cli.py extract -i out.png -p "secret123"
 ---
 
 **Documentation**
+
 - For more info on CLI usage, please refer to the manual at [/docs/CLIOpsManual.pdf](/docs/CLIOpsManual.pdf)
 - For information on mathematical detail behind this project, please see [docs/MathematicalDescription.pdf](docs/MathematicalDescription.pdf)
 
 ---
+
+## 🗺 Roadmap
+
+- [ ] Drag-and-drop support  
+- [ ] Password strength indicator  
+- [ ] Batch embedding (multiple files at once)  
+- [ ] GPU-accelerated video pipeline (optional)  
+- [ ] Theme selector (light/dark)  
+- [ ] Built-in steganalysis resistance testing tools  
+- [ ] Plugin system for custom codecs or algorithms 
