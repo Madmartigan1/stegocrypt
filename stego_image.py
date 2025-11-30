@@ -1,7 +1,6 @@
 # stego_image.py
 import numpy as np
 from PIL import Image
-from bit_utils import bytes_to_bits, bits_to_bytes
 from spread_utils import permuted_indices
 from crypto_utils import HEADER_LEN, SALT_LEN
 from payload_format import parse_payload
