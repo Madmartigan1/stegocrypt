@@ -22,6 +22,7 @@ import traceback
 from payload_format import build_payload
 from stego_image import embed_image, extract_image
 from stego_video import embed_video_streaming, extract_video_streaming
+from ecc_utils import REED_OK
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff"}
 VIDEO_EXTS = {".mp4", ".avi", ".mkv", ".mov"}
@@ -55,6 +56,9 @@ def do_embed(args: argparse.Namespace) -> int:
         return 2
     if not (1 <= args.lsb <= 3):
         print("[error] --lsb must be 1, 2, or 3", file=sys.stderr)
+        return 2
+    if args.use_ecc and not REED_OK:
+        print("[error] ECC requested but 'reedsolo' is not installed.", file=sys.stderr)
         return 2
 
     # Build secret bytes
@@ -119,6 +123,9 @@ def do_extract(args: argparse.Namespace) -> int:
     if not (1 <= args.lsb <= 3):
         print("[error] --lsb must be 1, 2, or 3", file=sys.stderr)
         return 2
+    if args.use_ecc and not REED_OK:
+        print("[error] ECC requested but 'reedsolo' is not installed.", file=sys.stderr)
+        return 2
 
     spread = not args.no_spread
     prog = progress_printer_factory(args.verbose)
@@ -127,11 +134,28 @@ def do_extract(args: argparse.Namespace) -> int:
         if is_image(args.in_path):
             if args.verbose:
                 print(f"[info] Extracting from image (lsb={args.lsb}, spread={spread})")
-            pt = extract_image(args.in_path, args.password, use_rs=args.use_ecc, rs_nsym=args.rs_nsym, lsb=args.lsb, spread=spread, progress=prog)
+            pt_bytes, meta = extract_image(
+                args.in_path,
+                args.password,
+                use_rs=args.use_ecc,
+                rs_nsym=args.rs_nsym,
+                lsb=args.lsb,
+                spread=spread,
+                progress=prog,
+            )
         elif is_video(args.in_path):
             if args.verbose:
                 print(f"[info] Extracting from video (lsb={args.lsb}, spread={spread}, chunk_frames={args.chunk_frames})")
-            pt = extract_video_streaming(args.in_path, args.password, lsb=args.lsb, spread=spread, chunk_frames=args.chunk_frames, use_rs=args.use_ecc, rs_nsym=args.rs_nsym, progress=prog)
+            pt_bytes, meta = extract_video_streaming(
+                args.in_path,
+                args.password,
+                lsb=args.lsb,
+                spread=spread,
+                chunk_frames=args.chunk_frames,
+                use_rs=args.use_ecc,
+                rs_nsym=args.rs_nsym,
+                progress=prog,
+            )
         else:
             print("[error] Unsupported input extension. Use a common image or video.", file=sys.stderr)
             return 2
@@ -142,22 +166,31 @@ def do_extract(args: argparse.Namespace) -> int:
 
     # Try to print as UTF-8 text; otherwise write to file
     try:
-        text = pt.decode("utf-8")
+        text = pt_bytes.decode("utf-8")
         print(text)  # to stdout
         if args.verbose:
             print("[ok] Extracted UTF-8 text to stdout.")
         return 0
     except Exception:
-        # Binary payload
+        # Binary payload (raw bytes)
         out_path = args.out_path
         if not out_path:
-            base, _ = os.path.splitext(args.in_path)
-            out_path = base + "_secret.bin"
+            # Prefer filename from metadata, if present
+            filename = None
+            try:
+                filename = meta.get("filename")
+            except Exception:
+                filename = None
+            if filename:
+                out_path = filename
+            else:
+                base, _ = os.path.splitext(args.in_path)
+                out_path = base + "_secret.bin"
             if args.verbose:
                 print(f"[info] No --out provided; writing binary to {out_path}")
         try:
             with open(out_path, "wb") as fh:
-                fh.write(pt)
+                fh.write(pt_bytes)
             if args.verbose:
                 print(f"[ok] Extracted binary saved to: {out_path}")
             return 0

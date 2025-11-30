@@ -1,9 +1,10 @@
 # app_gui.py
 import os, sys, traceback
-from tkinter import Tk, Frame, Label, Button, Entry, Text, END, filedialog, StringVar, IntVar, BooleanVar, ttk, messagebox
+from tkinter import Tk, Frame, Label, Button, Entry, Text, END, filedialog, StringVar, IntVar, BooleanVar, ttk, messagebox, Toplevel, Message
 from payload_format import build_payload
 from stego_image import embed_image, extract_image
 from stego_video import embed_video_streaming, extract_video_streaming
+from ecc_utils import REED_OK
 
 import platform
 import tkinter.font as tkfont
@@ -145,14 +146,12 @@ class App:
         except Exception:
             pass
 
-        # Row 0: Mode + pref checkbox (right-aligned)
+        # Row 0: Mode
         Label(top, text="Mode:").grid(row=0, column=0, sticky="w", padx=(0,6))
         mframe = Frame(top)
         mframe.grid(row=0, column=1, sticky="w")
         ttk.Radiobutton(mframe, text="Embed",  variable=self.mode, value="embed").pack(side="left")
         ttk.Radiobutton(mframe, text="Extract", variable=self.mode, value="extract").pack(side="left", padx=(8,0))
-        ttk.Checkbutton(top, text="Prefer saving extracted text", variable=self.pref_save_text)\
-                        .grid(row=0, column=2, sticky="e")
 
         # Row 1: Input
         Label(top, text="Input:").grid(row=1, column=0, sticky="w", padx=(0,6))
@@ -174,31 +173,111 @@ class App:
 
         Label(top, text="Password:").grid(row=3, column=0, sticky="w")
         Entry(top, textvariable=self.password, show="*").grid(row=3, column=1, sticky="ew")
-        Label(top, text="LSB/bpp:").grid(row=4, column=0, sticky="w", padx=(0,6))
-        oline = Frame(top); oline.grid(row=4, column=1, sticky="w")
-        ttk.Spinbox(oline, from_=1, to=3, textvariable=self.lsb, width=5).pack(side="left")
-        ttk.Checkbutton(oline, text="Spread (stealth)", variable=self.use_spread).pack(side="left", padx=(8,0))
-        ttk.Checkbutton(oline, text="ECC (Reed–Solomon)", variable=self.use_ecc).pack(side="left", padx=(8,0))
         
-        # ECC parity (put label+entry in a tiny frame to avoid overlapping the same grid cell)
-        pframe = Frame(top)
-        pframe.grid(row=4, column=2, sticky="e")
-        Label(pframe, text="ECC parity:").pack(side="left", padx=(0,6))
-        Entry(pframe, textvariable=self.rs_nsym, width=6).pack(side="left")
-        
+        # Advanced options notebook (for stealth, ECC, and codec)
+        adv_nb = ttk.Notebook(self.root)
+        adv_nb.pack(fill="x", padx=10, pady=(0, 6))
+        basic_tab = Frame(adv_nb)
+        advanced_tab = Frame(adv_nb)
+        adv_nb.add(basic_tab, text="Basic")
+        adv_nb.add(advanced_tab, text="Advanced")
 
-        # Lossless codec selector
-        Label(top, text="Lossless codec:").grid(row=5, column=0, sticky="w", pady=(4, 0), padx=(0,6))
+        # Basic tab explanatory text so it doesn't look empty
+        Label(
+            basic_tab,
+            text=(
+                "Basic mode uses safe defaults:\n\n"
+                "• Password-protected AES-GCM encryption\n"
+                "• Automatic payload formatting and capacity checks\n\n"
+                "For more control (capacity, stealth spreading, error-correction, and video codecs),\n"
+                "use the Advanced tab."
+            ),
+            justify="left",
+            anchor="nw"
+        ).pack(fill="x", padx=6, pady=6)
+
+        adv_row = 0
+        # Capacity / quality controls (LSB) now live in the Advanced tab
+        Label(advanced_tab, text="Capacity & Quality").grid(
+            row=adv_row, column=0, columnspan=3, sticky="w", pady=(4, 2)
+        )
+        adv_row += 1
+
+        Label(advanced_tab, text="LSB/bpp:").grid(
+            row=adv_row, column=0, sticky="w", padx=(0, 6)
+        )
+        lsb_frame = Frame(advanced_tab)
+        lsb_frame.grid(row=adv_row, column=1, sticky="w")
+        ttk.Spinbox(
+            lsb_frame,
+            from_=1,
+            to=3,
+            textvariable=self.lsb,
+            width=5
+        ).pack(side="left")
+        Label(
+            advanced_tab,
+            text="Higher LSB = more capacity, but more visible changes."
+        ).grid(row=adv_row, column=2, sticky="w")
+
+        adv_row += 1
+        Label(advanced_tab, text="Stealth & Reliability").grid(
+            row=adv_row, column=0, columnspan=3, sticky="w", pady=(8, 2)
+        )
+        adv_row += 1
+
+        self.spread_cb = ttk.Checkbutton(
+            advanced_tab,
+            text="Stealth spread (pseudo-random distribution)",
+            variable=self.use_spread
+        )
+        self.spread_cb.grid(row=adv_row, column=0, columnspan=3, sticky="w", pady=(0, 4))
+
+        adv_row += 1
+        self.ecc_checkbox = ttk.Checkbutton(
+            advanced_tab,
+            text="Enable ECC (Reed–Solomon)",
+            variable=self.use_ecc
+        )
+        self.ecc_checkbox.grid(row=adv_row, column=0, sticky="w")
+
+        Label(advanced_tab, text="ECC parity bytes:").grid(row=adv_row, column=1, sticky="e", padx=(10, 4))
+        self.rs_nsym_entry = ttk.Entry(advanced_tab, textvariable=self.rs_nsym, width=6)
+        self.rs_nsym_entry.grid(row=adv_row, column=2, sticky="w")
+
+        adv_row += 1
+        Label(advanced_tab, text="Lossless video codec:").grid(
+            row=adv_row, column=0, sticky="w", pady=(6, 0)
+        )
         self.codec_cb = ttk.Combobox(
-            top,
+            advanced_tab,
             textvariable=self.codec_sel,
             width=10,
             values=("h264rgb", "ffv1"),
             state="readonly"
         )
-        self.codec_cb.grid(row=5, column=1, sticky="w", padx=(0, 8), pady=(4, 0))
-        Label(top, text="(h264rgb = smaller; ffv1 = largest)")\
-            .grid(row=5, column=2, sticky="e", pady=(4, 0))
+        self.codec_cb.grid(row=adv_row, column=1, sticky="w", padx=(0, 8), pady=(6, 0))
+        Label(advanced_tab, text="h264rgb = smaller · ffv1 = largest/most robust").grid(
+            row=adv_row, column=2, sticky="w", pady=(6, 0)
+        )
+
+        adv_row += 1
+        self.pref_cb = ttk.Checkbutton(
+            advanced_tab,
+            text="Prefer saving extracted text to file",
+            variable=self.pref_save_text
+        )
+        self.pref_cb.grid(row=adv_row, column=0, columnspan=3, sticky="w", pady=(4, 4))
+
+        # Disable ECC controls cleanly if ECC backend not available
+        if not REED_OK:
+            self.use_ecc.set(False)
+            try:
+                self.ecc_checkbox.configure(state="disabled")
+                self.rs_nsym_entry.configure(state="disabled")
+            except Exception:
+                pass
+                
         mid = Frame(self.root); mid.pack(fill="both", expand=True, padx=10, pady=6)
         Label(mid, text="Message to embed (leave empty to embed a file):").pack(anchor="w")
         self.msg = Text(mid, height=6); self.msg.pack(fill="both", expand=True)
@@ -432,7 +511,7 @@ class App:
             messagebox.showerror("Error", str(e))
 
     def help(self):
-        messagebox.showinfo("Notes",
+        msg = (
             "- For stealth, keep LSB=1 and enable Spread.\n"
             "- Video codec:\n"
             "    • FFV1  — Lossless (largest files, best robustness)\n"
@@ -442,6 +521,7 @@ class App:
             "- Header + salt are stored sequentially; the rest is pseudo-randomly spread.\n"
             "- Streaming mode processes frames in chunks—safe for long videos."
         )
+        self._show_text_dialog("Notes", msg)
         
     def show_usage(self):
         msg = (
@@ -457,14 +537,45 @@ class App:
             "- Enter password shared secretly by sender\n"
             "- Click Run"
         )
-        try:
-            messagebox.showinfo("Usage", msg)
-        except Exception:
-            # Fallback: set status if messagebox can't open (headless envs, etc.)
-            self.status.set("Usage:\n" + msg.replace("\n", " | "))
+        self._show_text_dialog("Usage", msg)
 
     def clear(self):
         self.msg.delete("1.0", END)
         self.file_in.set(""); self.file_out.set(""); self.password.set("")
         self.status.set("Ready"); self.prog['value']=0
 
+    def _show_text_dialog(self, title, text, width=520):
+        """
+        Cross-platform text dialog with a predictable width, so it doesn't end up
+        tall and skinny on some Linux Tk builds.
+        """
+        try:
+            win = Toplevel(self.root)
+            win.title(title)
+            win.transient(self.root)
+            win.grab_set()
+            win.resizable(True, True)
+
+            msg = Message(win, text=text, justify="left")
+            # width is in pixels; this keeps wrapping sane on Linux
+            msg.configure(width=width)
+            msg.pack(padx=12, pady=12)
+
+            btn = Button(win, text="OK", command=win.destroy)
+            btn.pack(pady=(0, 10))
+
+            win.update_idletasks()
+            # Center dialog over the main window, best effort
+            try:
+                x = self.root.winfo_rootx() + (self.root.winfo_width() // 2) - (win.winfo_width() // 2)
+                y = self.root.winfo_rooty() + (self.root.winfo_height() // 2) - (win.winfo_height() // 2)
+                win.geometry(f"+{x}+{y}")
+            except Exception:
+                pass
+        except Exception:
+            # Fallbacks if Toplevel/Message fails (e.g., very headless envs)
+            try:
+                messagebox.showinfo(title, text)
+            except Exception:
+                # Last resort: stuff it into the status bar
+                self.status.set(f"{title}: " + text.replace("\n", " | "))
