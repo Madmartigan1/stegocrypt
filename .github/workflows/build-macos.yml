@@ -23,8 +23,9 @@ jobs:
           - runner: macos-14
             arch: arm64
             dmg_suffix: arm64
-          # Intel
-          - runner: macos-13
+          # Intel (macos-13 was retired Dec 2025; macos-15-intel is the last
+          # x86_64 image GitHub offers, supported until Aug 2027)
+          - runner: macos-15-intel
             arch: x86_64
             dmg_suffix: x86_64
 
@@ -62,7 +63,7 @@ jobs:
         run: |
           ICON_FLAG=""
           if [ -f assets/stegocrypt.icns ]; then ICON_FLAG="--icon assets/stegocrypt.icns"; fi
-          # Build native for this runner (arm64 on macos-14, x86_64 on macos-13)
+          # Build native for this runner (arm64 on macos-14, x86_64 on macos-15-intel)
           python -m PyInstaller --clean --windowed --name "StegoCrypt" ${ICON_FLAG} \
             --collect-submodules=cv2 --collect-submodules=Crypto --collect-all=PIL \
             main.py
