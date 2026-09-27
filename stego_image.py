@@ -1,6 +1,7 @@
 # stego_image.py
 import numpy as np
 from PIL import Image
+from bit_utils import bytes_to_bits, bits_to_bytes
 from spread_utils import permuted_indices
 from crypto_utils import HEADER_LEN, SALT_LEN
 from payload_format import parse_payload
@@ -92,7 +93,9 @@ def extract_image(in_path, password: str, use_rs=False, rs_nsym=0, lsb: int=1, s
     header = bits_to_bytes(np.array(hb, dtype=np.uint8))
 
     if header[:len(MAGIC)] != MAGIC: raise ValueError("Magic not found")
-    
+    # Capacity depends on the detected LSB; must match what embed_image used
+    total_slots = flat.size * lsb
+
     pay_len = struct.unpack(">Q", header[len(MAGIC):len(MAGIC)+8])[0]
     payload_bits_needed = pay_len * 8
 
