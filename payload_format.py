@@ -5,7 +5,7 @@ from ecc_utils import rs_encode, rs_decode
 
 # Inside the encrypted blob:
 # [ b"SC01" ][ u16_be name_len ][ name_bytes ][ raw_secret_bytes ]
-# (files from v1.0.6 and earlier may hold an RS-encoded secret here instead; see parse_payload)
+# (files from v1.0.7 and earlier may hold an RS-encoded secret here instead; see parse_payload)
 FORMAT_TAG = b"SC01"
 
 
@@ -65,7 +65,7 @@ def parse_payload(full: bytes, password: str, use_rs: bool = False, rs_nsym: int
     Returns: (raw_secret_bytes, {"filename": Optional[str]})
 
     With use_rs, the current layout (RS outside GCM) is tried first. If that fails,
-    the legacy layout written by v1.0.6 and earlier (RS inside GCM, applied to the
+    the legacy layout written by v1.0.7 and earlier (RS inside GCM, applied to the
     secret only) is tried, so older stego files still extract.
     """
     # Verify and consume header
@@ -101,7 +101,7 @@ def parse_payload(full: bytes, password: str, use_rs: bool = False, rs_nsym: int
     except Exception as e:
         new_err = e
 
-    # Legacy layout (<= v1.0.6): decrypt first, then RS-decode the inner body.
+    # Legacy layout (<= v1.0.7): decrypt first, then RS-decode the inner body.
     try:
         blob = decrypt_bytes(password, encrypted)
     except Exception:

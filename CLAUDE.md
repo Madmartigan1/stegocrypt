@@ -34,7 +34,7 @@ ciphertext decrypts to: "SC01" | u16be name_len | filename | secret
 ```
 The key comes from PBKDF2-SHA256 (200k iterations) using the salt. `HEADER_LEN` = magic + length = 16 bytes. `payload_len` counts everything after the header, so the bit-placement code does not need to know whether ECC is on.
 
-**ECC is encrypt-then-RS** (changed after v1.0.6). Reed-Solomon (`reedsolo`, 255-byte codewords, `nsym` 1–254 parity bytes per codeword, which corrects up to `nsym/2` bad bytes per codeword) wraps the encrypted bytes, so carrier bit errors are fixed before the GCM tag is checked. The salt is left raw because it seeds the permutation before anything can be decoded. The header and salt are **not** protected, so a single flipped bit in the first 256 slots is fatal. With `use_rs`, `parse_payload` tries the new layout first and then falls back to the legacy one (≤ v1.0.6: RS applied to the secret *inside* GCM), so old ECC files still extract. Files with ECC made by the new code **cannot** be read by v1.0.6 or earlier. ECC only covers sparse bit flips. It does not let a payload survive lossy re-encoding (JPEG, H.264 at crf > 0, resizing).
+**ECC is encrypt-then-RS** (changed after v1.0.7). Reed-Solomon (`reedsolo`, 255-byte codewords, `nsym` 1–254 parity bytes per codeword, which corrects up to `nsym/2` bad bytes per codeword) wraps the encrypted bytes, so carrier bit errors are fixed before the GCM tag is checked. The salt is left raw because it seeds the permutation before anything can be decoded. The header and salt are **not** protected, so a single flipped bit in the first 256 slots is fatal. With `use_rs`, `parse_payload` tries the new layout first and then falls back to the legacy one (≤ v1.0.7: RS applied to the secret *inside* GCM), so old ECC files still extract. Files with ECC made by the new code **cannot** be read by v1.0.7 or earlier. ECC only covers sparse bit flips. It does not let a payload survive lossy re-encoding (JPEG, H.264 at crf > 0, resizing).
 
 **Bit placement** is the part that spans files, and embed and extract must mirror each other exactly:
 - A "slot" is one bit position. Slot `s` maps to carrier byte `s // lsb`, bit `s % lsb`, over the flattened RGB (image) or BGR (OpenCV video) array.
@@ -51,8 +51,8 @@ The key comes from PBKDF2-SHA256 (200k iterations) using the salt. `HEADER_LEN` 
 
 ## Known issues (as of 2026-11)
 
-- Release v1.0.6 cannot embed into images (missing `bytes_to_bits` import), and its image extraction fails for LSB 2/3 unless `--lsb` is passed. Both are fixed on `main` after v1.0.6.
-- Fixed on `main` after v1.0.6 (2026-11): Reed-Solomon used to be applied inside the AES-GCM envelope, so any bit error failed the GCM tag and ECC did nothing. See "ECC is encrypt-then-RS" above.
+- Release v1.0.6 cannot embed into images (missing `bytes_to_bits` import), and its image extraction fails for LSB 2/3 unless `--lsb` is passed. Both are fixed in v1.0.7 (PR #16).
+- Fixed on `main` after v1.0.7 (2026-11, PR #19): Reed-Solomon used to be applied inside the AES-GCM envelope, so any bit error failed the GCM tag and ECC did nothing. See "ECC is encrypt-then-RS" above.
 - The header and salt (the first 256 slots) have no error protection.
 - `Image.fromarray(arr, "RGB")` (in `stego_image.py`) raises a Pillow deprecation warning because the `mode` argument is due for removal in Pillow 13. `requirements.txt` is unpinned, so CI could pick up a Pillow version that breaks it.
 - The CLI does not pass `orig_name` to `build_payload`, so filenames are not preserved. Embedded files that are valid UTF-8 are printed to stdout rather than saved.
