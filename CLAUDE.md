@@ -22,16 +22,19 @@ powershell -File scripts/build_win.ps1           # local Inno Setup build from e
 
 **Releases are built by CI**, not locally. Pushing a `vX.Y.Z` tag runs `.github/workflows/build-{windows,macos,linux}.yml`. The Windows job runs PyInstaller with command-line flags (`--windowed --collect-submodules=cv2 ...`, entry `main.py`), so `*.spec` files are gitignored and unused. It then runs Inno Setup with `/DMyAppVersion=<tag>` and attaches `Windows-StegoCrypt-Setup.exe` to the GitHub release. Past code changes were web-uploaded, and one upload silently dropped an import. Commit through git instead.
 
-There is no test suite. Check changes with a CLI round-trip (embed, then extract, then compare bytes) on a generated cover image and a short video. Cover the non-default `--lsb`, `--no-spread` and `--codec ffv1` options too.
+There is no test suite. `media/` holds the user's local test media (a few short MP4/M4V clips and PNG screenshots). It is untracked, so never commit it; trim clips with ffmpeg before testing, because embedding writes every frame out as a PNG. Check changes with a CLI round-trip (embed, then extract, then compare bytes) on a generated cover image and a short video. Cover the non-default `--lsb`, `--no-spread` and `--codec ffv1` options too. For ECC, flip a few random LSBs outside the first 256 slots of a stego PNG and check that `--use-ecc` still extracts the data. Also keep a stego file made by the previous release around, to check backward compatibility.
 
 ## Architecture
 
 **Payload layout** (`payload_format.build_payload` / `parse_payload`, `crypto_utils`):
 ```
-MAGIC "STEGVID3" (8) | u64be payload_len (8) | salt(16) | nonce(12) | AES-GCM ciphertext | tag(16)
-ciphertext decrypts to: "SC01" | u16be name_len | filename | secret (optionally Reed-Solomon encoded)
+no ECC:   MAGIC "STEGVID3" (8) | u64be payload_len (8) | salt(16) | nonce(12) | AES-GCM ciphertext | tag(16)
+with ECC: MAGIC "STEGVID3" (8) | u64be payload_len (8) | salt(16) | RS_nsym( nonce | ciphertext | tag )
+ciphertext decrypts to: "SC01" | u16be name_len | filename | secret
 ```
-The key comes from PBKDF2-SHA256 (200k iterations) using the salt. `HEADER_LEN` = magic + length = 16 bytes.
+The key comes from PBKDF2-SHA256 (200k iterations) using the salt. `HEADER_LEN` = magic + length = 16 bytes. `payload_len` counts everything after the header, so the bit-placement code does not need to know whether ECC is on.
+
+**ECC is encrypt-then-RS** (changed after v1.0.6). Reed-Solomon (`reedsolo`, 255-byte codewords, `nsym` 1–254 parity bytes per codeword, which corrects up to `nsym/2` bad bytes per codeword) wraps the encrypted bytes, so carrier bit errors are fixed before the GCM tag is checked. The salt is left raw because it seeds the permutation before anything can be decoded. The header and salt are **not** protected, so a single flipped bit in the first 256 slots is fatal. With `use_rs`, `parse_payload` tries the new layout first and then falls back to the legacy one (≤ v1.0.6: RS applied to the secret *inside* GCM), so old ECC files still extract. Files with ECC made by the new code **cannot** be read by v1.0.6 or earlier. ECC only covers sparse bit flips. It does not let a payload survive lossy re-encoding (JPEG, H.264 at crf > 0, resizing).
 
 **Bit placement** is the part that spans files, and embed and extract must mirror each other exactly:
 - A "slot" is one bit position. Slot `s` maps to carrier byte `s // lsb`, bit `s % lsb`, over the flattened RGB (image) or BGR (OpenCV video) array.
@@ -46,8 +49,10 @@ The key comes from PBKDF2-SHA256 (200k iterations) using the salt. `HEADER_LEN` 
 
 **GUI vs CLI:** `app_gui.App.run` duplicates the CLI's dispatch logic (extension → image/video, text-vs-binary output handling) rather than sharing it, so behaviour changes usually need applying in both places. Only the GUI passes `orig_name` to `build_payload`.
 
-## Known issues (as of 2026-09)
+## Known issues (as of 2026-11)
 
 - Release v1.0.6 cannot embed into images (missing `bytes_to_bits` import), and its image extraction fails for LSB 2/3 unless `--lsb` is passed. Both are fixed on `main` after v1.0.6.
-- Reed-Solomon is applied inside the AES-GCM envelope. Any bit corruption fails the GCM tag before RS can correct it, so ECC gives no real robustness.
+- Fixed on `main` after v1.0.6 (2026-11): Reed-Solomon used to be applied inside the AES-GCM envelope, so any bit error failed the GCM tag and ECC did nothing. See "ECC is encrypt-then-RS" above.
+- The header and salt (the first 256 slots) have no error protection.
+- `Image.fromarray(arr, "RGB")` (in `stego_image.py`) raises a Pillow deprecation warning because the `mode` argument is due for removal in Pillow 13. `requirements.txt` is unpinned, so CI could pick up a Pillow version that breaks it.
 - The CLI does not pass `orig_name` to `build_payload`, so filenames are not preserved. Embedded files that are valid UTF-8 are printed to stdout rather than saved.
