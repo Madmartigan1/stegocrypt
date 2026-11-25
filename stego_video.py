@@ -93,7 +93,7 @@ def embed_video_streaming(in_path, out_path, full_payload: bytes, password: str,
         raise ValueError("Payload smaller than header+salt")
 
     # writer
-    writer = LosslessWriter(out_path, w, h, fps, codec=codec)
+    writer = LosslessWriter(out_path, w, h, fps, codec=codec, audio_src=in_path)
 
     bit_idx = 0
     frame_cursor = 0
@@ -160,10 +160,20 @@ def embed_video_streaming(in_path, out_path, full_payload: bytes, password: str,
         chunk_index += 1
         if progress: progress(bit_idx, need_bits)
 
+    if bit_idx < need_bits:
+        cap.release(); writer.close()
+        raise RuntimeError("Ran out of capacity before finishing payload")
+
+    # Copy the frames after the payload through unchanged, so the output keeps the full
+    # length of the source. Extraction stops reading once the payload is complete.
+    while True:
+        frames = next_chunk_frames(chunk_frames)
+        if not frames: break
+        writer.write_frames(np.stack(frames, axis=0))
+
     cap.release()
     writer.close()
-    if bit_idx < need_bits:
-        raise RuntimeError("Ran out of capacity before finishing payload")
+    out_path = writer.out_path  # LosslessWriter may have changed the extension (h264rgb -> .mkv)
         
     # --- Post-embed verification to catch any lossless/pix_fmt mishaps early
     if not _quick_header_magic_ok(out_path, lsb_guess=lsb):

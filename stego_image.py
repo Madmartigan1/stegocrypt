@@ -49,7 +49,7 @@ def embed_image(in_path, out_path, full_payload: bytes, password: str, lsb: int=
         if progress and (i % 10000 == 0): progress(i, rem_bits)
 
     # Always save losslessly; if the user picked a non-PNG name, still write PNG to avoid LSB loss.
-    img_out = Image.fromarray(flat.reshape(arr.shape), "RGB")
+    img_out = Image.fromarray(flat.reshape(arr.shape))  # uint8 HxWx3 -> RGB
     try:
         img_out.save(out_path, format="PNG")
     except Exception:

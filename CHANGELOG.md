@@ -9,6 +9,9 @@ Notable changes to StegoCrypt. Dates are when the change landed on `main`.
   - Stego files with ECC made by v1.0.7 and earlier still extract: the extractor tries the old layout if the new one fails.
   - Stego files with ECC made by this version **cannot** be extracted by v1.0.7 or earlier. Files without ECC are unchanged and compatible both ways.
   - The magic header and salt (first 32 bytes) are still unprotected. ECC handles scattered bit flips, not lossy re-encoding.
+- **Video output keeps its full length and audio (2026-11-25).** Embedding used to stop writing frames once the payload was in, so a 13 s clip came out at 3 s with no sound. The remaining frames are now copied through and the source audio is added to the output. Existing stego videos still extract.
+- With h264rgb and an output name other than `.mkv`, the post-embed check opened the wrong file, because the output had been renamed to `.mkv`.
+- Image embedding no longer passes the `mode` argument that Pillow 13 removes from `Image.fromarray`.
 - ECC parity bytes are now checked to be in the 1–254 range.
 - When extraction fails, the error message now names the likely causes (wrong password, a mismatched ECC/stealth setting, or too much damage).
 
