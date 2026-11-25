@@ -10,8 +10,9 @@ class LosslessWriter:
       - 'h264rgb'   (lossless, much smaller; requires libx264rgb)
     Fallback: write AVI via OpenCV (may be MJPEG).
      """
-    def __init__(self, out_path, width, height, fps, codec="ffv1"):
+    def __init__(self, out_path, width, height, fps, codec="ffv1", audio_src=None):
         self.out_path = out_path
+        self.audio_src = audio_src  # optional file whose audio track is muxed into the output
         self.width, self.height, self.fps = width, height, fps
         self.codec = codec.lower()
         self.have_ffmpeg = shutil.which("ffmpeg") is not None
@@ -49,35 +50,35 @@ class LosslessWriter:
         if self.have_ffmpeg:
             # assemble via ffmpeg using selected codec
             input_pat = os.path.join(self.tmpdir, "frame_%06d.png")
+            if self.codec == "h264rgb":
+                # Strictly lossless RGB H.264 in MKV. Keyframes only (-g 1).
+                vargs = ["-c:v", "libx264rgb", "-crf", "0", "-preset", "veryslow",
+                         "-pix_fmt", "rgb24", "-g", "1"]
+            else:
+                # FFV1 lossless (very robust). Keep rgb24, CRC slices, keyframes only.
+                # MKV is ideal; ffmpeg will pick from extension.
+                vargs = ["-c:v", "ffv1", "-level", "3", "-pix_fmt", "rgb24", "-g", "1", "-slicecrc", "1"]
+            base = ["ffmpeg", "-y", "-framerate", str(self.fps), "-i", input_pat]
+            video_only = base + vargs + [self.out_path]
+            attempts = []
+            if self.audio_src:
+                # Audio is never touched by the stego bits, so copy it as-is when the container
+                # accepts the codec; otherwise let ffmpeg re-encode to the container default.
+                # "1:a?" makes the audio map optional, so sources without audio still work.
+                with_audio = base + ["-i", self.audio_src, "-map", "0:v:0", "-map", "1:a?"] + vargs
+                attempts.append(with_audio + ["-c:a", "copy", self.out_path])
+                attempts.append(with_audio + [self.out_path])
+            attempts.append(video_only)
             try:
-                if self.codec == "h264rgb":
-                    # Strictly lossless RGB H.264 in MKV. Keyframes only (-g 1).
-                    cmd = [
-                        "ffmpeg","-y",
-                        "-framerate", str(self.fps),
-                        "-i", input_pat,
-                        "-c:v", "libx264rgb",
-                        "-crf", "0",
-                        "-preset", "veryslow",
-                        "-pix_fmt", "rgb24",
-                        "-g", "1",
-                        self.out_path
-                    ]
-                else:
-                    # FFV1 lossless (very robust). Keep rgb24, CRC slices, keyframes only.
-                    # MKV is ideal; ffmpeg will pick from extension.
-                    cmd = [
-                        "ffmpeg","-y",
-                        "-framerate", str(self.fps),
-                        "-i", input_pat,
-                        "-c:v", "ffv1",
-                        "-level", "3",
-                        "-pix_fmt", "rgb24",
-                        "-g", "1",
-                        "-slicecrc", "1",
-                        self.out_path
-                    ]
-                subprocess.run(cmd, check=True)
+                for i, cmd in enumerate(attempts):
+                    try:
+                        subprocess.run(cmd, check=True)
+                        break
+                    except subprocess.CalledProcessError:
+                        if i == len(attempts) - 1:
+                            raise
+                        if cmd is attempts[-2]:
+                            print("[warn] Could not add the source audio to the output; writing video only.")
             except subprocess.CalledProcessError as e:
                 raise RuntimeError(
                     "ffmpeg failed while assembling the video.\n"
